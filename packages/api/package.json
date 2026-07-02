@@ -1,0 +1,32 @@
+{
+  "name": "@kritva/api",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Kritva Hono.js API server: routes, middleware (auth/RBAC/validation/rate-limit/audit), and domain services.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "echo \"[@kritva/api] dev script not implemented yet (T-008).\" && exit 0",
+    "build": "tsc",
+    "start": "echo \"[@kritva/api] start script not implemented yet (T-008).\" && exit 0",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf .turbo dist node_modules"
+  },
+  "dependencies": {
+    "@kritva/db": "workspace:*",
+    "@kritva/notifications": "workspace:*",
+    "@kritva/payments": "workspace:*",
+    "@kritva/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@kritva/eslint-config": "workspace:*",
+    "@kritva/tsconfig": "workspace:*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  }
+}

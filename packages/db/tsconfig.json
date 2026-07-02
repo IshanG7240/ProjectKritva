@@ -1,0 +1,9 @@
+{
+  "extends": "@kritva/tsconfig/node-library.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "migrations", ".turbo"]
+}

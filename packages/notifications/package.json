@@ -1,0 +1,31 @@
+{
+  "name": "@kritva/notifications",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Multi-channel notification dispatch (SMS via MSG91, email via Resend, push via Expo) with preference-aware routing and React Email templates.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sms": "./src/sms.ts",
+    "./email": "./src/email.ts",
+    "./push": "./src/push.ts",
+    "./dispatcher": "./src/dispatcher.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf .turbo node_modules"
+  },
+  "dependencies": {
+    "@kritva/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@kritva/eslint-config": "workspace:*",
+    "@kritva/tsconfig": "workspace:*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  }
+}

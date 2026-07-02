@@ -1,0 +1,36 @@
+{
+  "name": "@kritva/types",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Shared TypeScript types, Zod schemas, and enum constants for the Kritva platform.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/api.ts",
+    "./auth": "./src/auth.ts",
+    "./vendor": "./src/vendor.ts",
+    "./booking": "./src/booking.ts",
+    "./payment": "./src/payment.ts",
+    "./event": "./src/event.ts",
+    "./review": "./src/review.ts",
+    "./messaging": "./src/messaging.ts",
+    "./notification": "./src/notification.ts",
+    "./admin": "./src/admin.ts",
+    "./enums": "./src/enums.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf .turbo node_modules"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@kritva/eslint-config": "workspace:*",
+    "@kritva/tsconfig": "workspace:*",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  }
+}
