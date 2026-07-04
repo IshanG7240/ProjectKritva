@@ -18,6 +18,7 @@ import type { AuthVariables } from "./middleware/supabase-auth.js";
 import { authRouter } from "./routes/auth.js";
 import { vendorsRouter } from "./routes/vendors.js";
 import { bookingsRouter } from "./routes/bookings.js";
+import { paymentsRouter } from "./routes/payments.js";
 
 
 /** Shape of every error object that appears inside the error envelope. */
@@ -62,6 +63,7 @@ app.use(
 app.route("/v1/auth", authRouter);
 app.route("/v1/vendors", vendorsRouter);
 app.route("/v1/bookings", bookingsRouter);
+app.route("/v1/payments", paymentsRouter);
 
 // ---------------------------------------------------------------------------
 // Global error handler
