@@ -28,7 +28,7 @@ export const users = pgTable(
     id: text("id")
       .primaryKey()
       .default(sql`generate_ulid()`),
-    phone: varchar("phone", { length: 15 }).notNull(),
+    phone: varchar("phone", { length: 15 }),
     email: varchar("email", { length: 255 }),
     passwordHash: varchar("password_hash", { length: 255 }),
     name: varchar("name", { length: 100 }).notNull(),

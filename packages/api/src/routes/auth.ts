@@ -5,7 +5,6 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import { ulid } from "ulid";
 import { eq } from "drizzle-orm";
 import { db } from "@kritva/db/client";
 import { users, vendors } from "@kritva/db";
@@ -18,7 +17,8 @@ const authRouter = new Hono<{ Variables: AuthVariables }>();
 const syncRequestSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name cannot exceed 100 characters"),
   email: z.string().email("Invalid email address").optional(),
-  phone: z.string().min(10, "Phone number must be at least 10 digits").max(15, "Phone number cannot exceed 15 digits"),
+  // Phone is not provided by Google OAuth — must be optional/nullable.
+  phone: z.string().min(10).max(15).nullish(),
 });
 
 /**
@@ -70,13 +70,10 @@ authRouter.post("/sync", supabaseAuth(), async (c) => {
 
   const { name, email, phone } = parsed.data;
 
-  // Generate client-side ULID for safety/insert (or use a DB default, but spec requested valid ULID primary key)
-  const newUserId = ulid();
-
-  // 3. Perform insert into public.users
+  // 3. Insert using the Supabase auth subject as the primary key (lookup key above).
   await db.insert(users).values({
-    id: newUserId,
-    phone,
+    id: userId,
+    phone: phone ?? null,
     email: email || authUser.email,
     name,
     role: "customer",
@@ -87,9 +84,9 @@ authRouter.post("/sync", supabaseAuth(), async (c) => {
   return c.json({
     data: {
       user: {
-        id: newUserId,
+        id: userId,
         email: email || authUser.email,
-        phone,
+        phone: phone ?? null,
         name,
         role: "customer",
         onboarding_complete: false,

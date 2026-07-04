@@ -4,26 +4,55 @@
 
 @layer base {
   :root {
-    --background: 220 33% 98%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 210 40% 98%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Base surfaces — pure white + very light grey card */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 10%;
+    --card: 0 0% 98%;
+    --card-foreground: 240 10% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 220.9 39.3% 11%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 12px;
+    --popover-foreground: 240 10% 10%;
+
+    /* Primary — deep charcoal, same as foreground for high contrast */
+    --primary: 240 10% 10%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary — light cool grey */
+    --secondary: 210 16% 93%;
+    --secondary-foreground: 240 10% 20%;
+
+    /* Muted text / backgrounds */
+    --muted: 210 16% 96%;
+    --muted-foreground: 240 5% 45%;
+
+    /* Accent — neutral hover state */
+    --accent: 210 16% 93%;
+    --accent-foreground: 240 10% 10%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders and inputs */
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 240 10% 10%;
+
+    /* Sharp 4px radius for clean, professional look */
+    --radius: 4px;
+
+    /* Status colors — amber for payment pending, emerald for confirmed/completed */
+    --status-pending: 38 92% 50%;
+    --status-pending-bg: 48 96% 95%;
+    --status-pending-fg: 32 95% 20%;
+    --status-confirmed: 142 71% 45%;
+    --status-confirmed-bg: 138 76% 95%;
+    --status-confirmed-fg: 142 72% 18%;
+    --status-released: 221 83% 53%;
+    --status-released-bg: 214 100% 95%;
+    --status-released-fg: 224 71% 22%;
+    --status-cancelled: 0 84% 60%;
+    --status-cancelled-bg: 0 100% 96%;
+    --status-cancelled-fg: 0 74% 25%;
 
     /* Fallback Font Variables for Offline builds */
     --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -51,6 +80,20 @@
     --border: 220 24% 14%;
     --input: 220 23% 12%;
     --ring: 212.7 26.8% 83.9%;
+
+    /* Status colors dark variants */
+    --status-pending: 38 92% 60%;
+    --status-pending-bg: 32 80% 12%;
+    --status-pending-fg: 48 96% 88%;
+    --status-confirmed: 142 71% 50%;
+    --status-confirmed-bg: 142 50% 10%;
+    --status-confirmed-fg: 138 76% 85%;
+    --status-released: 221 83% 65%;
+    --status-released-bg: 221 60% 12%;
+    --status-released-fg: 214 100% 88%;
+    --status-cancelled: 0 84% 65%;
+    --status-cancelled-bg: 0 60% 12%;
+    --status-cancelled-fg: 0 100% 88%;
   }
 }
 
@@ -64,5 +107,25 @@
   }
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Semantic status badge utilities for booking/payment states */
+  .status-pending {
+    background-color: hsl(var(--status-pending-bg));
+    color: hsl(var(--status-pending-fg));
+  }
+  .status-confirmed {
+    background-color: hsl(var(--status-confirmed-bg));
+    color: hsl(var(--status-confirmed-fg));
+  }
+  .status-released {
+    background-color: hsl(var(--status-released-bg));
+    color: hsl(var(--status-released-fg));
+  }
+  .status-cancelled {
+    background-color: hsl(var(--status-cancelled-bg));
+    color: hsl(var(--status-cancelled-fg));
   }
 }
