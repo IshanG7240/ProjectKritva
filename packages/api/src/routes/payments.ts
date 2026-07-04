@@ -1,13 +1,25 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { zValidator } from "@hono/zod-validator";
-import { db } from "@kritva/db";
+import { db } from "@kritva/db/client";
 import { eq } from "drizzle-orm";
-import { bookings, payments, bookingMilestones } from "@kritva/db/schema";
-import { requireAuth } from "../middleware/supabase-auth.js";
+import { bookings, payments, bookingMilestones } from "@kritva/db";
+import { supabaseAuth } from "../middleware/supabase-auth.js";
 import type { AuthVariables } from "../middleware/supabase-auth.js";
 
 export const paymentsRouter = new Hono<{ Variables: AuthVariables }>();
+
+// Zod schemas for validation
+const initiateSchema = z.object({
+  booking_id: z.string().min(1, "Booking ID is required"),
+});
+
+const simulateCaptureSchema = z.object({
+  booking_id: z.string().min(1, "Booking ID is required"),
+});
+
+const releaseSchema = z.object({
+  booking_id: z.string().min(1, "Booking ID is required"),
+});
 
 /**
  * 1. POST /v1/payments/initiate
@@ -15,17 +27,28 @@ export const paymentsRouter = new Hono<{ Variables: AuthVariables }>();
  */
 paymentsRouter.post(
   "/initiate",
-  requireAuth(["customer"]),
-  zValidator(
-    "json",
-    z.object({
-      booking_id: z.string().min(1, "Booking ID is required"),
-    })
-  ),
+  supabaseAuth(),
   async (c) => {
-    const { booking_id } = c.req.valid("json");
+    const body = await c.req.json();
+    const parsed = initiateSchema.safeParse(body);
 
-    // Verify booking exists and belongs to the customer
+    if (!parsed.success) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Request validation failed.",
+            fields: parsed.error.flatten().fieldErrors,
+          },
+        },
+        400
+      );
+    }
+
+    const { booking_id } = parsed.data;
+
+    // Verify booking exists
     const booking = await db.query.bookings.findFirst({
       where: eq(bookings.id, booking_id),
     });
@@ -66,14 +89,25 @@ paymentsRouter.post(
  */
 paymentsRouter.post(
   "/simulate-capture",
-  zValidator(
-    "json",
-    z.object({
-      booking_id: z.string().min(1, "Booking ID is required"),
-    })
-  ),
   async (c) => {
-    const { booking_id } = c.req.valid("json");
+    const body = await c.req.json();
+    const parsed = simulateCaptureSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Request validation failed.",
+            fields: parsed.error.flatten().fieldErrors,
+          },
+        },
+        400
+      );
+    }
+
+    const { booking_id } = parsed.data;
 
     try {
       await db.transaction(async (tx) => {
@@ -133,15 +167,26 @@ paymentsRouter.post(
  */
 paymentsRouter.post(
   "/release",
-  requireAuth(["customer"]),
-  zValidator(
-    "json",
-    z.object({
-      booking_id: z.string().min(1, "Booking ID is required"),
-    })
-  ),
+  supabaseAuth(),
   async (c) => {
-    const { booking_id } = c.req.valid("json");
+    const body = await c.req.json();
+    const parsed = releaseSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Request validation failed.",
+            fields: parsed.error.flatten().fieldErrors,
+          },
+        },
+        400
+      );
+    }
+
+    const { booking_id } = parsed.data;
 
     try {
       const payout = await db.transaction(async (tx) => {
