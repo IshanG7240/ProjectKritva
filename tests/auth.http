@@ -1,0 +1,35 @@
+### Test 1: Global 404 Error Envelope Handler
+GET http://localhost:8000/v1/auth/invalid-route-xyz
+Accept: application/json
+
+### Test 2: Middleware Reject Missing Token
+POST http://localhost:8000/v1/auth/sync
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "test@example.com",
+  "phone": "+919999999999"
+}
+
+### Test 3: Middleware Reject Expired/Malformed Token
+POST http://localhost:8000/v1/auth/sync
+Authorization: Bearer bad_token_strings_go_here
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "test@example.com",
+  "phone": "+919999999999"
+}
+
+### Test 4: Onboarding Field Validation (Missing Required Role)
+# Note: For this and Test 5, temporarily comment out the auth middleware in your code 
+# OR swap the token for a valid Supabase test token to verify the Zod execution.
+PATCH http://localhost:8000/v1/auth/onboarding
+Content-Type: application/json
+
+{
+  "business_name": "Ghost Kitchen"
+}

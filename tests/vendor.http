@@ -1,0 +1,16 @@
+### Test 1: Fetch All Approved Vendors
+GET http://localhost:5430/v1/vendors
+Accept: application/json
+
+### Test 2: Filter Vendors by Category
+GET http://localhost:5430/v1/vendors?category=decor
+Accept: application/json
+
+### Test 3: Fetch Existing Vendor by Unique Slug
+# Replace 'delhi-dream-decorators' with a slug present in your seeded database
+GET http://localhost:5430/v1/vendors/vendor-1-catering
+Accept: application/json
+
+### Test 4: Handle Non-Existent Vendor Slug (404 Test)
+GET http://localhost:5430/v1/vendors/does-not-exist-slug-123
+Accept: application/json

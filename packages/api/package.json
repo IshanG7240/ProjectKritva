@@ -9,24 +9,31 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "echo \"[@kritva/api] dev script not implemented yet (T-008).\" && exit 0",
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
     "build": "tsc",
-    "start": "echo \"[@kritva/api] start script not implemented yet (T-008).\" && exit 0",
+    "start": "node dist/server.js",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
     "clean": "rm -rf .turbo dist node_modules"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.8",
     "@kritva/db": "workspace:*",
     "@kritva/notifications": "workspace:*",
     "@kritva/payments": "workspace:*",
-    "@kritva/types": "workspace:*"
+    "@kritva/types": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.7.11",
+    "jose": "^6.2.3",
+    "ulid": "^3.0.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@kritva/eslint-config": "workspace:*",
     "@kritva/tsconfig": "workspace:*",
     "@types/node": "^22.15.3",
     "eslint": "^9.39.1",
+    "tsx": "^4.22.4",
     "typescript": "5.9.2"
   }
 }
