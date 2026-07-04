@@ -1,0 +1,22 @@
+### Test 1: Create a New Booking Inquiry (As Customer)
+# Replace the Authorization header with a valid Customer token
+# Replace vendor_id with a real vendor ID from your database seed
+POST http://localhost:5430/v1/bookings
+Authorization: Bearer CUSTOMER_TEST_TOKEN
+Content-Type: application/json
+
+{
+  "vendor_id": "01GD2V9BYGW9NNEXG5X9YYYYYY",
+  "event_date": "2026-11-15",
+  "event_type": "wedding",
+  "guest_count": 250,
+  "total_amount": 7500000,
+  "notes": "Looking for outdoor floral setup at Chhattarpur Farms."
+}
+
+### Test 2: Vendor Accepts the Booking Request
+# Replace the ':id' path variable with the actual booking ULID returned from Test 1
+# Replace the Authorization header with a valid Vendor token
+PATCH http://localhost:5430/v1/bookings/01KWPN94RA1FDBXHDWC62ZAHRE/accept
+Authorization: Bearer VENDOR_TEST_TOKEN
+Content-Type: application/json

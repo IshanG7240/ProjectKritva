@@ -17,6 +17,7 @@ import { HTTPException } from "hono/http-exception";
 import type { AuthVariables } from "./middleware/supabase-auth.js";
 import { authRouter } from "./routes/auth.js";
 import { vendorsRouter } from "./routes/vendors.js";
+import { bookingsRouter } from "./routes/bookings.js";
 
 
 /** Shape of every error object that appears inside the error envelope. */
@@ -60,6 +61,7 @@ app.use(
 // Mount business-domain routes
 app.route("/v1/auth", authRouter);
 app.route("/v1/vendors", vendorsRouter);
+app.route("/v1/bookings", bookingsRouter);
 
 // ---------------------------------------------------------------------------
 // Global error handler
