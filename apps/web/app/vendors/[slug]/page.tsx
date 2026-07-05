@@ -1,303 +1,240 @@
-/* eslint-disable */
-import React from "react";
-import { BadgeCheck, Star, Clock, MapPin, ShieldCheck, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+"use client";
 
-// Since frontend shouldn't import from @kritva/db, we define the presentation type here
-// matching the MVP architecture's requirements.
-interface VendorProfile {
+/**
+ * Individual vendor profile page.
+ * Fetches vendor data from GET /v1/vendors/:slug, then renders
+ * a booking inquiry form that POSTs to /v1/bookings on submit.
+ */
+
+import { use } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { apiClient } from "@/lib/api-client";
+
+// --- Types ---
+
+interface Service {
   id: string;
-  businessName: string;
-  slug: string;
-  category: string[];
-  cityId: string;
-  description: string;
-  yearsInBusiness: number;
-  avgRating: number;
-  ratingCount: number;
-  bookingCount: number;
-  responseTimeHours: number;
-  verificationStatus: "pending_review" | "approved" | "rejected" | "suspended";
-  services: {
-    id: string;
-    name: string;
-    description: string;
-    priceMin: number;
-    priceMax: number;
-    unit: string;
-  }[];
-  media: {
-    id: string;
-    url: string;
-    type: "image" | "video";
-    altText: string;
-  }[];
-  reviews: {
-    id: string;
-    authorName: string;
-    rating: number;
-    content: string;
-    date: string;
-    eventContext: string;
-  }[];
+  name: string;
+  description: string | null;
+  price_min: number;
+  price_max: number;
+  unit: string;
 }
 
-const formatCurrency = (paisa: number) => {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(paisa / 100);
-};
+interface VendorProfile {
+  id: string;
+  business_name: string;
+  slug: string;
+  category: string[];
+  city_id: string;
+  description: string | null;
+  years_in_business: number | null;
+  avg_rating: number | null;
+  rating_count: number;
+  booking_count: number;
+  response_time_hours: number | null;
+  services: Service[];
+}
 
-// Hardcoded mock data per requirements
-const mockVendor: VendorProfile = {
-  id: "01HQ1234567890ABCDEF",
-  businessName: "The Royal Catering Co.",
-  slug: "the-royal-catering-co",
-  category: ["Catering", "Event Management"],
-  cityId: "Delhi NCR",
-  description: "Specializing in premium North Indian and Mughlai cuisine, The Royal Catering Co. has been creating unforgettable culinary experiences for over a decade. We bring authentic flavors, impeccable service, and a touch of royalty to every event.",
-  yearsInBusiness: 12,
-  avgRating: 4.8,
-  ratingCount: 124,
-  bookingCount: 340,
-  responseTimeHours: 1.5,
-  verificationStatus: "approved",
-  services: [
-    {
-      id: "srv_1",
-      name: "Premium Wedding Buffet",
-      description: "Includes 5 live counters, 10 main courses, and 8 desserts.",
-      priceMin: 250000, // ₹2,500.00
-      priceMax: 450000,
-      unit: "per_plate",
-    },
-    {
-      id: "srv_2",
-      name: "Corporate High Tea",
-      description: "Assorted sandwiches, artisanal teas, and fresh pastries.",
-      priceMin: 80000, // ₹800.00
-      priceMax: 150000,
-      unit: "per_plate",
-    },
-  ],
-  media: [
-    { id: "m1", url: "https://images.unsplash.com/photo-1555244162-803834f87a4d?q=80&w=2070&auto=format&fit=crop", type: "image", altText: "Catering setup 1" },
-    { id: "m2", url: "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?q=80&w=2070&auto=format&fit=crop", type: "image", altText: "Catering setup 2" },
-    { id: "m3", url: "https://images.unsplash.com/photo-1655195671755-d41938b81db1?q=80&w=2070&auto=format&fit=crop", type: "image", altText: "Catering setup 3" },
-  ],
-  reviews: [
-    {
-      id: "rev_1",
-      authorName: "Nisha Sharma",
-      rating: 5,
-      content: "The food was incredible, and the presentation was exactly what we discussed. They arrived early and handled the 300+ guests effortlessly.",
-      date: "March 2026",
-      eventContext: "Booked for a 300-guest wedding",
-    },
-    {
-      id: "rev_2",
-      authorName: "Rajesh Kumar",
-      rating: 4.5,
-      content: "Excellent service for our corporate offsite. The high tea arrangements were much appreciated by the international delegates.",
-      date: "January 2026",
-      eventContext: "Booked for a Corporate Event",
-    }
-  ]
-};
+// Shape after apiClient unwraps the outer `data` key.
+interface VendorResponse {
+  vendor: VendorProfile;
+}
 
-export default function VendorProfilePage() {
-  const v = mockVendor;
+// react-hook-form field types.
+interface BookingFormValues {
+  event_date: string;
+  event_type: string;
+  guest_count: number;
+  total_amount: number;
+  notes: string;
+}
+
+// Payload sent to POST /v1/bookings.
+interface CreateBookingPayload {
+  vendor_id: string;
+  event_date: string;
+  event_type: string;
+  guest_count?: number;
+  total_amount: number;
+  notes?: string;
+}
+
+interface BookingResponse {
+  booking: { id: string; status: string };
+}
+
+// --- Data fetchers ---
+
+async function fetchVendor(slug: string): Promise<VendorProfile> {
+  const res = await apiClient.get<VendorResponse>(`/v1/vendors/${slug}`);
+  if (res.error) throw new Error(res.error.message);
+  return res.data!.vendor;
+}
+
+async function createBooking(payload: CreateBookingPayload): Promise<BookingResponse> {
+  const res = await apiClient.post<BookingResponse>("/v1/bookings", payload);
+  if (res.error) throw new Error(res.error.message);
+  return res.data!;
+}
+
+// --- Component ---
+
+export default function VendorProfilePage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  // Unwrap the async params object (Next.js 15 pattern).
+  const { slug } = use(params);
+
+  const {
+    data: vendor,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["vendor", slug],
+    queryFn: () => fetchVendor(slug),
+  });
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<BookingFormValues>();
+
+  const mutation = useMutation({
+    mutationFn: (values: BookingFormValues) =>
+      createBooking({
+        vendor_id: vendor!.id,
+        event_date: values.event_date,
+        event_type: values.event_type,
+        // guest_count and total_amount come in as strings from HTML inputs; coerce to int.
+        guest_count: values.guest_count ? Number(values.guest_count) : undefined,
+        total_amount: Number(values.total_amount),
+        notes: values.notes || undefined,
+      }),
+    onSuccess: () => {
+      alert("Inquiry Sent!");
+      reset();
+    },
+    onError: (err: Error) => {
+      alert(`Failed to send inquiry: ${err.message}`);
+    },
+  });
+
+  if (isLoading) return <div>Loading...</div>;
+
+  if (isError) {
+    return (
+      <div>
+        Error loading vendor:{" "}
+        {error instanceof Error ? error.message : "Unknown error"}
+      </div>
+    );
+  }
+
+  if (!vendor) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* 1. Hero Image Gallery (Masonry style implied by grid) */}
-      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 h-[400px] md:h-[500px] rounded-[12px] overflow-hidden">
-          <div className="md:col-span-2 h-full">
-            <img 
-              src={v.media[0]?.url || ""} 
-              alt={v.media[0]?.altText || ""}
-              className="w-full h-full object-cover hover:scale-[1.02] transition-transform duration-400 ease-out" 
-            />
-          </div>
-          <div className="hidden md:flex flex-col gap-4 h-full">
-            <img 
-              src={v.media[1]?.url || ""} 
-              alt={v.media[1]?.altText || ""}
-              className="w-full h-[calc(50%-8px)] object-cover hover:scale-[1.02] transition-transform duration-400 ease-out rounded-tr-[12px]" 
-            />
-            <img 
-              src={v.media[2]?.url || ""} 
-              alt={v.media[2]?.altText || ""}
-              className="w-full h-[calc(50%-8px)] object-cover hover:scale-[1.02] transition-transform duration-400 ease-out rounded-br-[12px]" 
-            />
-          </div>
-        </div>
+    <main>
+      <h1>{vendor.business_name}</h1>
+
+      {/* Vendor meta */}
+      <p>Category: {vendor.category.join(", ")}</p>
+      {vendor.avg_rating != null && <p>Rating: {vendor.avg_rating}</p>}
+      {vendor.description && <p>{vendor.description}</p>}
+
+      {/* Services list */}
+      <section>
+        <h2>Services</h2>
+        {vendor.services.length === 0 ? (
+          <p>No services listed.</p>
+        ) : (
+          <ul>
+            {vendor.services.map((service) => (
+              <li key={service.id}>
+                <strong>{service.name}</strong> — ₹
+                {(service.price_min / 100).toLocaleString("en-IN")} /{" "}
+                {service.unit.replace("_", " ")}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-12">
-        
-        {/* Main Content Area */}
-        <div className="flex-1 space-y-12">
-          
-          {/* Header Info */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-              <MapPin className="w-4 h-4" />
-              <span>{v.cityId}</span>
-              <span>•</span>
-              <span>{v.category.join(", ")}</span>
-            </div>
-            
-            <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-              {v.businessName}
-            </h1>
-            
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <div className="flex items-center gap-1 font-medium">
-                <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-                <span className="tabular-nums">{v.avgRating}</span>
-                <span className="text-muted-foreground underline decoration-muted-foreground/30 underline-offset-4 cursor-pointer">
-                  ({v.ratingCount} reviews)
-                </span>
-              </div>
-              
-              {v.verificationStatus === "approved" && (
-                <Badge variant="outline" className="bg-kritva-green-bg/10 text-kritva-green border-kritva-green/20 gap-1 rounded-[4px] px-2 py-0.5 font-medium">
-                  <BadgeCheck className="w-3.5 h-3.5" />
-                  Kritva Verified
-                </Badge>
-              )}
-              
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Clock className="w-4 h-4" />
-                <span>Responds in ~{v.responseTimeHours} hrs</span>
-              </div>
-            </div>
+      {/* Booking inquiry form */}
+      <section>
+        <h2>Request a Booking</h2>
+        <form onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+
+          <div>
+            <label htmlFor="event_date">Event Date</label>
+            <input
+              id="event_date"
+              type="date"
+              {...register("event_date", { required: "Event date is required" })}
+            />
+            {errors.event_date && <span>{errors.event_date.message}</span>}
           </div>
 
-          <div className="h-px bg-border w-full" />
-
-          {/* Description */}
-          <section className="space-y-4">
-            <h2 className="text-2xl font-semibold">About</h2>
-            <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed text-[16px]">
-              {v.description}
-            </p>
-          </section>
-
-          <div className="h-px bg-border w-full" />
-
-          {/* Pricing/Services Table */}
-          <section className="space-y-6">
-            <h2 className="text-2xl font-semibold">Pricing & Services</h2>
-            <div className="grid gap-4">
-              {v.services.map((service) => (
-                <div key={service.id} className="p-4 border border-border rounded-[12px] bg-card flex flex-col sm:flex-row justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-lg">{service.name}</h3>
-                    <p className="text-sm text-muted-foreground">{service.description}</p>
-                  </div>
-                  <div className="text-left sm:text-right flex-shrink-0">
-                    <div className="font-semibold text-lg tabular-nums">
-                      {formatCurrency(service.priceMin)} - {formatCurrency(service.priceMax)}
-                    </div>
-                    <div className="text-sm text-muted-foreground capitalize">
-                      {service.unit.replace("_", " ")}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <div className="h-px bg-border w-full" />
-
-          {/* Reviews */}
-          <section className="space-y-6">
-            <h2 className="text-2xl font-semibold flex items-center gap-2">
-              <Star className="w-6 h-6 fill-amber-500 text-amber-500" />
-              <span>{v.avgRating}</span>
-              <span className="text-muted-foreground text-lg font-normal">({v.ratingCount} reviews)</span>
-            </h2>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              {v.reviews.map((review) => (
-                <div key={review.id} className="space-y-3 p-5 rounded-[12px] bg-neutral-50 dark:bg-neutral-100/5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-semibold text-accent-foreground">
-                      {review.authorName.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="font-medium">{review.authorName}</div>
-                      <div className="text-xs text-muted-foreground">{review.date}</div>
-                    </div>
-                  </div>
-                  <div className="flex text-amber-500">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`w-3.5 h-3.5 ${i < Math.floor(review.rating) ? 'fill-current' : 'opacity-30'}`} />
-                    ))}
-                  </div>
-                  <p className="text-sm text-foreground leading-relaxed">{review.content}</p>
-                  <p className="text-xs text-muted-foreground italic">— {review.eventContext}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        {/* Sticky Right Rail (Booking Card) */}
-        <div className="w-full lg:w-[360px] flex-shrink-0">
-          <div className="sticky top-24">
-            <Card className="rounded-[12px] shadow-lg border-border">
-              <CardContent className="p-6 space-y-6">
-                <div className="space-y-2">
-                  <div className="text-2xl font-bold tabular-nums">
-                    {formatCurrency(v.services[0]?.priceMin ?? 0)}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Starting price
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <Button className="w-full h-12 rounded-[4px] bg-kritva-blue hover:bg-kritva-blue-hover text-white font-medium text-base transition-colors">
-                    Request Booking
-                  </Button>
-                  <Button variant="outline" className="w-full h-12 rounded-[4px]">
-                    Send Message
-                  </Button>
-                </div>
-
-                {/* Trust markers */}
-                <div className="pt-4 border-t border-border space-y-3">
-                  <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                    <ShieldCheck className="w-5 h-5 text-kritva-green flex-shrink-0 mt-0.5" />
-                    <p>Payments held securely in escrow until milestones are met.</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <div>
+            <label htmlFor="event_type">Event Type</label>
+            <select
+              id="event_type"
+              {...register("event_type", { required: "Event type is required" })}
+            >
+              <option value="">Select type</option>
+              <option value="wedding">Wedding</option>
+              <option value="corporate">Corporate</option>
+              <option value="birthday">Birthday</option>
+              <option value="social">Social</option>
+            </select>
+            {errors.event_type && <span>{errors.event_type.message}</span>}
           </div>
-        </div>
 
-      </div>
+          <div>
+            <label htmlFor="guest_count">Guest Count</label>
+            <input
+              id="guest_count"
+              type="number"
+              min={1}
+              {...register("guest_count")}
+            />
+          </div>
 
-      {/* Mobile Sticky Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border lg:hidden shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-50 flex items-center justify-between gap-4">
-        <div>
-          <div className="font-bold tabular-nums">{formatCurrency(v.services[0]?.priceMin ?? 0)}</div>
-          <div className="text-xs text-muted-foreground">Starting price</div>
-        </div>
-        <Button className="h-12 px-8 rounded-[4px] bg-kritva-blue hover:bg-kritva-blue-hover text-white">
-          Request
-        </Button>
-      </div>
+          <div>
+            <label htmlFor="total_amount">
+              Total Amount (paisa, e.g. 50000 = ₹500)
+            </label>
+            <input
+              id="total_amount"
+              type="number"
+              min={1}
+              {...register("total_amount", {
+                required: "Total amount is required",
+              })}
+            />
+            {errors.total_amount && <span>{errors.total_amount.message}</span>}
+          </div>
 
-    </div>
+          <div>
+            <label htmlFor="notes">Notes</label>
+            <textarea id="notes" {...register("notes")} />
+          </div>
+
+          <button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Sending..." : "Send Inquiry"}
+          </button>
+
+          {mutation.isError && (
+            <p>Error: {(mutation.error as Error).message}</p>
+          )}
+        </form>
+      </section>
+    </main>
   );
 }
