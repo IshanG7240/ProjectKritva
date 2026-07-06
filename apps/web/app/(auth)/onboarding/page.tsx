@@ -58,7 +58,7 @@ export default function OnboardingPage() {
 
     // Route based on confirmed role from backend.
     const destination =
-      res.data.role === "vendor" ? "/vendor-dashboard" : "/dashboard";
+      res.data.role === "vendor" ? "/vendor" : "/dashboard";
     router.push(destination);
   }
 

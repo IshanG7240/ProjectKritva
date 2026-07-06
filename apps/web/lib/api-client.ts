@@ -8,7 +8,19 @@ if (!API_URL) {
 
 /** Standard response envelope from the Kritva Hono backend. */
 export type ApiResponse<T = unknown> =
-  | { data: T; error: null }
+  | {
+      data: T;
+      error: null;
+      meta?: {
+        pagination?: {
+          totalCount: number;
+          limit: number;
+          offset?: number;
+          hasNextPage: boolean;
+          nextCursor?: string;
+        };
+      };
+    }
   | { data: null; error: { message: string; code?: string } };
 
 /** Options for a raw fetch request — mirrors RequestInit without the body type restriction. */
@@ -93,9 +105,8 @@ async function request<T>(
 
   try {
     const json = await response.json();
-    // Backend wraps successes in { data: ... }; unwrap and re-wrap for consistency
     const data: T = json?.data !== undefined ? json.data : json;
-    return { data, error: null };
+    return { data, error: null, meta: json?.meta };
   } catch {
     return { data: null, error: { message: "Failed to parse server response." } };
   }

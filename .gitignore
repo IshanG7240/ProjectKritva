@@ -48,3 +48,8 @@ docs/
 .claude
 .claudeconfig
 .agents
+
+# Ignore development updates file
+future_updates.md
+
+audits

@@ -7,9 +7,27 @@ const geist = localFont({
   variable: "--font-sans",
 });
 
+// DM Serif Display local configuration to prevent Turbopack next/font/google resolution errors
+const dmSerif = localFont({
+  src: [
+    {
+      path: "./fonts/DMSerifDisplay-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "./fonts/DMSerifDisplay-Italic.woff2",
+      weight: "400",
+      style: "italic",
+    },
+  ],
+  variable: "--font-serif",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Kritva - Every vendor verified. Every rupee protected.",
-  description: "Plan your event in Delhi NCR with vendors who've been background-checked, and payments that release only when you're satisfied.",
+  title: "Kritva — Plan the event. We'll hold the rest.",
+  description: "Kritva is the operating system for India's premium events. Verified vendors, escrowed payments, and built-in compliance.",
 };
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -23,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable, dmSerif.variable)}>
       <body className="font-sans antialiased">
         <Providers>
           <ThemeProvider

@@ -22,6 +22,8 @@ MIGRATIONS=(
   "010_row_level_security.sql"
   "011_seed_platform_config.sql"
   "012_nullable_user_phone.sql"
+  "013_vendor_profile_media.sql"
+  "014_storage_policies.sql"
 )
 
 echo "Running ${#MIGRATIONS[@]} migrations..."

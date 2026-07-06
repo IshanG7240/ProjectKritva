@@ -60,7 +60,7 @@ export default function CallbackPage() {
         return;
       }
 
-      router.replace(role === "vendor" ? "/vendor-dashboard" : "/dashboard");
+      router.replace(role === "vendor" ? "/vendor" : "/dashboard");
     }
 
     handleCallback();

@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { vendorCategorySchema, serviceUnitSchema, documentTypeSchema, mediaTypeSchema } from "./enums.js";
+import {
+  vendorCategorySchema,
+  serviceUnitSchema,
+  documentTypeSchema,
+  mediaTypeSchema,
+  mediaSectionSchema,
+} from "./enums.js";
 import { ulidSchema, paisaSchema } from "./api.js";
 
 // ==========================================
@@ -15,7 +21,8 @@ export const createVendorSchema = z.object({
     .min(1, "At least one category is required"),
   city_id: z.string().max(50).optional().default("delhi-ncr"),
   description: z.string().max(2000, "Description cannot exceed 2000 characters").optional(),
-  years_in_business: z.number().int().nonnegative().optional(),
+  years_in_business: z.number().int().nonnegative().nullable().optional(),
+  profile_photo_url: z.string().url("Invalid URL format").nullable().optional(),
 });
 export type CreateVendorInput = z.infer<typeof createVendorSchema>;
 
@@ -75,11 +82,12 @@ export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
 // ==========================================
 export const createMediaSchema = z.object({
   url: z.string().url("Invalid URL format"),
-  thumbnail_url: z.string().url("Invalid URL format").optional(),
-  detail_url: z.string().url("Invalid URL format").optional(),
+  thumbnail_url: z.string().url("Invalid URL format").nullish(),
+  detail_url: z.string().url("Invalid URL format").nullish(),
   type: mediaTypeSchema.optional().default("image"),
+  section: mediaSectionSchema.optional().default("portfolio"),
   position: z.number().int().nonnegative().optional().default(0),
-  alt_text: z.string().max(255).optional(),
+  alt_text: z.string().max(255).nullish(),
 });
 export type CreateMediaInput = z.infer<typeof createMediaSchema>;
 
@@ -120,3 +128,45 @@ export const updateAvailabilitySchema = z.object({
   dates: z.array(availabilityItemSchema).min(1, "At least one date is required"),
 });
 export type UpdateAvailabilityInput = z.infer<typeof updateAvailabilitySchema>;
+
+// ==========================================
+// 6. Vendor Directory (public list)
+// ==========================================
+export const vendorListItemSchema = z.object({
+  id: ulidSchema,
+  business_name: z.string(),
+  slug: z.string(),
+  category: z.array(vendorCategorySchema),
+  city_id: z.string(),
+  avg_rating: z.union([z.string(), z.number()]).nullable(),
+  rating_count: z.number().int().nonnegative(),
+  booking_count: z.number().int().nonnegative(),
+  price_min: paisaSchema.nullable(),
+  price_max: paisaSchema.nullable(),
+  unit: serviceUnitSchema.nullable(),
+});
+export type VendorListItem = z.infer<typeof vendorListItemSchema>;
+
+export const vendorListQuerySchema = z
+  .object({
+    category: vendorCategorySchema.optional(),
+    city_id: z.string().max(50).optional(),
+    q: z.string().trim().min(1).max(100).optional(),
+    price_min: z.coerce.number().int().nonnegative().optional(),
+    price_max: z.coerce.number().int().nonnegative().optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(12),
+    offset: z.coerce.number().int().nonnegative().default(0),
+  })
+  .refine(
+    (data) => {
+      if (data.price_min !== undefined && data.price_max !== undefined) {
+        return data.price_max >= data.price_min;
+      }
+      return true;
+    },
+    {
+      message: "price_max must be greater than or equal to price_min",
+      path: ["price_max"],
+    }
+  );
+export type VendorListQuery = z.infer<typeof vendorListQuerySchema>;

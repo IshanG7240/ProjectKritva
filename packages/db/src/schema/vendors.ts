@@ -18,6 +18,7 @@ import {
 
 import {
   DOCUMENT_TYPES,
+  MEDIA_SECTIONS,
   MEDIA_TYPES,
   SERVICE_UNITS,
   VERIFICATION_STATUSES,
@@ -47,6 +48,7 @@ export const vendors = pgTable(
     cityId: varchar("city_id", { length: 50 }).notNull().default("delhi-ncr"),
     description: text("description"),
     yearsInBusiness: integer("years_in_business"),
+    profilePhotoUrl: text("profile_photo_url"),
     avgRating: numeric("avg_rating", { precision: 3, scale: 2 })
       .notNull()
       .default("0"),
@@ -138,6 +140,10 @@ export const vendorMedia = pgTable(
       .notNull()
       .default("image")
       .$type<(typeof MEDIA_TYPES)[number]>(),
+    section: text("section")
+      .notNull()
+      .default("portfolio")
+      .$type<(typeof MEDIA_SECTIONS)[number]>(),
     position: integer("position").notNull().default(0),
     altText: varchar("alt_text", { length: 255 }),
     createdAt: timestamp("created_at", { withTimezone: true })

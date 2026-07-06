@@ -149,6 +149,10 @@ export const MEDIA_TYPES = ["image", "video"] as const;
 export const mediaTypeSchema = z.enum(MEDIA_TYPES);
 export type MediaType = z.infer<typeof mediaTypeSchema>;
 
+export const MEDIA_SECTIONS = ["banner", "portfolio"] as const;
+export const mediaSectionSchema = z.enum(MEDIA_SECTIONS);
+export type MediaSection = z.infer<typeof mediaSectionSchema>;
+
 export const EVENT_STATUSES = ["planning", "in_progress", "completed", "cancelled"] as const;
 export const eventStatusSchema = z.enum(EVENT_STATUSES);
 export type EventStatus = z.infer<typeof eventStatusSchema>;

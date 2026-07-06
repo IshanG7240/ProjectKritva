@@ -20,8 +20,9 @@ const config = {
     },
     extend: {
       fontFamily: {
-        sans: ["var(--font-inter)", "sans-serif"],
+        sans: ["var(--font-sans)", "sans-serif"],
         display: ["var(--font-lexend)", "sans-serif"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
         mono: ["var(--font-jetbrains-mono)", "monospace"],
       },
       colors: {
@@ -86,7 +87,17 @@ const config = {
             DEFAULT: "#EF4444",
             bg: "#7F1D1D"
           }
-        }
+        },
+        // Marketing page light-mode palette
+        mk: {
+          bg: "#F5EFE2",
+          ink: "#1C1A16",
+          muted: "#7A7060",
+          border: "#DDD5C4",
+          navy: "#1D3557",
+          amber: "#B87333",
+          hero: "#18171A",
+        },
       },
       spacing: {
         '1': '4px',

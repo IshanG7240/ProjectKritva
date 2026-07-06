@@ -19,6 +19,7 @@ import { authRouter } from "./routes/auth.js";
 import { vendorsRouter } from "./routes/vendors.js";
 import { bookingsRouter } from "./routes/bookings.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { adminRouter } from "./routes/admin.js";
 
 
 /** Shape of every error object that appears inside the error envelope. */
@@ -64,6 +65,7 @@ app.route("/v1/auth", authRouter);
 app.route("/v1/vendors", vendorsRouter);
 app.route("/v1/bookings", bookingsRouter);
 app.route("/v1/payments", paymentsRouter);
+app.route("/v1/admin", adminRouter);
 
 // ---------------------------------------------------------------------------
 // Global error handler

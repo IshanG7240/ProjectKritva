@@ -209,4 +209,54 @@ bookingsRouter.patch("/:id/accept", supabaseAuth(), async (c) => {
   );
 });
 
+/**
+ * GET /v1/bookings
+ * Authenticated: Returns all bookings belonging to the current user.
+ * Dynamically resolves whether user is customer or vendor.
+ */
+bookingsRouter.get("/", supabaseAuth(), async (c) => {
+  const user = c.get("user");
+  const userId = user.id;
+
+  // Let's first check if this user is a vendor.
+  const [vendor] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(eq(vendors.userId, userId))
+    .limit(1);
+
+  let results;
+  if (vendor) {
+    // If user is vendor, fetch bookings where vendorId matches their profile.
+    results = await db
+      .select({
+        id: bookings.id,
+        vendor_id: bookings.vendorId,
+        customer_id: bookings.customerId,
+        event_date: bookings.eventDate,
+        event_type: bookings.eventType,
+        total_amount: bookings.totalAmount,
+        status: bookings.status,
+      })
+      .from(bookings)
+      .where(eq(bookings.vendorId, vendor.id));
+  } else {
+    // If not vendor, assume customer, fetch bookings where customerId matches userId.
+    results = await db
+      .select({
+        id: bookings.id,
+        vendor_id: bookings.vendorId,
+        customer_id: bookings.customerId,
+        event_date: bookings.eventDate,
+        event_type: bookings.eventType,
+        total_amount: bookings.totalAmount,
+        status: bookings.status,
+      })
+      .from(bookings)
+      .where(eq(bookings.customerId, userId));
+  }
+
+  return c.json({ data: results, error: null }, 200);
+});
+
 export { bookingsRouter };

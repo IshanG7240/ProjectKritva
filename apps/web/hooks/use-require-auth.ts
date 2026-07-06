@@ -11,7 +11,7 @@ export interface KritvaUser {
   id: string;
   email: string;
   name: string;
-  role: "customer" | "vendor" | "admin" | "superadmin";
+  role: "customer" | "vendor" | "admin";
   onboarding_complete: boolean;
 }
 
@@ -26,8 +26,15 @@ interface AuthState {
  * Reads the active Supabase session and fetches the Kritva user profile.
  * Redirects to /login if unauthenticated and to the correct dashboard if
  * the user's role doesn't match `requiredRole`.
+ * `requiredRole` can be a single role or an array of accepted roles.
  */
-export function useRequireAuth(requiredRole?: "customer" | "vendor"): AuthState {
+export function useRequireAuth(
+  requiredRole?:
+    | "customer"
+    | "vendor"
+    | "admin"
+    | Array<"customer" | "vendor" | "admin">,
+): AuthState {
   const router = useRouter();
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -69,10 +76,18 @@ export function useRequireAuth(requiredRole?: "customer" | "vendor"): AuthState 
         return;
       }
 
-      // Role mismatch — send to the correct workspace.
-      if (requiredRole && kritvaUser.role !== requiredRole) {
-        const correct =
-          kritvaUser.role === "vendor" ? "/vendor-dashboard" : "/dashboard";
+      // Normalise requiredRole to an array for uniform comparison.
+      const allowed = requiredRole
+        ? Array.isArray(requiredRole)
+          ? requiredRole
+          : [requiredRole]
+        : null;
+
+      if (allowed && !allowed.includes(kritvaUser.role)) {
+        // Redirect to the user's correct workspace.
+        let correct = "/dashboard";
+        if (kritvaUser.role === "vendor") correct = "/vendor";
+        if (kritvaUser.role === "admin") correct = "/admin";
         router.replace(correct);
         return;
       }
