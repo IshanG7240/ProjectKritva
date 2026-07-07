@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "pnpm turbo build --filter=@kritva/api"
+buildCommand = "npx -y pnpm@11.9.0 turbo build --filter=@kritva/api"
 watchPatterns = ["packages/api/**", "packages/db/**", "packages/types/**", "packages/notifications/**", "packages/payments/**"]
 
 [deploy]
