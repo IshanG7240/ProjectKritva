@@ -5,7 +5,8 @@ function getApiUrl(): string {
   if (!apiUrl) {
     throw new Error("NEXT_PUBLIC_API_URL is not set");
   }
-  return apiUrl;
+  // Avoid /v1/v1/... when env copies API_BASE_URL (which includes /v1).
+  return apiUrl.replace(/\/+$/, "").replace(/\/v1$/, "");
 }
 
 /** Standard response envelope from the Kritva Hono backend. */
