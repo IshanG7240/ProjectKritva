@@ -4,7 +4,7 @@
  * All endpoints require the authenticated user to have role 'admin' or 'superadmin'.
  */
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@kritva/db/client";
@@ -19,7 +19,7 @@ const adminRouter = new Hono<{ Variables: AuthVariables }>();
  * 403 Forbidden envelope if the role is not 'admin' or 'superadmin'.
  * Returns the user record on success so callers can use it directly.
  */
-async function requireAdmin(c: Parameters<typeof adminRouter.get>[1]) {
+async function requireAdmin(c: Context<{ Variables: AuthVariables }>) {
   const authUser = c.get("user");
 
   const [dbUser] = await db

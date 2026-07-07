@@ -2,7 +2,20 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "globalDependencies": ["**/.env.*local", ".env"],
-  "globalEnv": ["NODE_ENV", "DATABASE_URL", "DATABASE_URL_DIRECT"],
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "DATABASE_URL_DIRECT",
+    "SUPABASE_URL",
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_SUPABASE_PORTFOLIO_BUCKET",
+    "NEXT_PUBLIC_SUPABASE_BANNERS_BUCKET",
+    "NEXT_PUBLIC_SUPABASE_PFP_BUCKET"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
