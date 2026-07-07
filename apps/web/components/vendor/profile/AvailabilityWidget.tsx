@@ -93,7 +93,7 @@ export function AvailabilityWidget() {
       </div>
 
       <p className="mt-2 font-sans text-[10px] text-mk-muted">
-        Booking requests — coming soon
+        Green dates indicate open availability
       </p>
     </div>
   );

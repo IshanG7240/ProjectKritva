@@ -1,5 +1,13 @@
-// Unified dispatcher that routes typed notification payloads to enabled
-// channels based on each user's notification_preferences row.
-// Populated in T-027.
+export type BookingVendorAcceptedPayload = {
+  kind: "booking_vendor_accepted";
+  booking_id: string;
+  customer_id: string;
+  vendor_id: string;
+  total_amount: number;
+};
 
-export {};
+export async function dispatch(
+  _payload: BookingVendorAcceptedPayload,
+): Promise<void> {
+  // In-app channel first; SMS/email adapters wired in T-027.
+}

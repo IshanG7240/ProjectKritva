@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { AppNav } from "@/components/layout/app-nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, User, Store } from "lucide-react";
@@ -63,7 +64,9 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col bg-background">
+      <AppNav />
+      <div className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-lg space-y-8">
         {/* Header */}
         <div className="space-y-2 text-center">
@@ -141,6 +144,7 @@ export default function OnboardingPage() {
             "Continue"
           )}
         </Button>
+      </div>
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api-client";
+import { AppNav } from "@/components/layout/app-nav";
+import { consumeReturnTo } from "@/lib/booking-form";
 import { Loader2 } from "lucide-react";
 
 /**
@@ -60,17 +62,26 @@ export default function CallbackPage() {
         return;
       }
 
-      router.replace(role === "vendor" ? "/vendor" : "/dashboard");
+      const returnTo = consumeReturnTo();
+      if (returnTo) {
+        router.replace(returnTo);
+        return;
+      }
+
+      router.replace(role === "vendor" ? "/vendor" : "/vendors");
     }
 
     handleCallback();
   }, [router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-3 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />
-        <p className="text-sm">Signing you in…</p>
+    <div className="flex min-h-screen flex-col bg-background">
+      <AppNav />
+      <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <p className="text-sm">Signing you in…</p>
+        </div>
       </div>
     </div>
   );

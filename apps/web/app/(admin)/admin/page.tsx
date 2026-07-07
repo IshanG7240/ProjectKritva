@@ -8,7 +8,7 @@
 import { useRequireAuth } from "@/hooks/use-require-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { DashboardNav } from "@/components/layout/dashboard-nav";
+import { AppNav } from "@/components/layout/app-nav";
 
 // Shape of a vendor returned by GET /v1/admin/vendors/pending
 interface PendingVendor {
@@ -82,9 +82,8 @@ export default function AdminPage() {
   if (loading || !user) return null;
 
   return (
-    <>
-      {/* Top navigation with logout */}
-      <DashboardNav user={user} badge="Admin Control Panel" />
+    <div className="min-h-screen bg-mk-bg">
+      <AppNav />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 space-y-8">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -152,6 +151,6 @@ export default function AdminPage() {
           </>
         )}
       </main>
-    </>
+    </div>
   );
 }

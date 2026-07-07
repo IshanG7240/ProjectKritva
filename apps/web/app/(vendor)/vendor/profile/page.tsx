@@ -42,7 +42,7 @@ function VendorProfileEditor() {
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
   const [uploadingPfp, setUploadingPfp] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(true);
 
   const {
     draft,
@@ -185,9 +185,8 @@ function VendorProfileEditor() {
           {(saveMessage || saveError) && (
             <div className="border-b border-mk-border bg-white px-6 py-2">
               <p
-                className={`mx-auto max-w-6xl text-sm ${
-                  saveError ? "text-red-600" : "text-emerald-700"
-                }`}
+                className={`mx-auto max-w-6xl text-sm ${saveError ? "text-red-600" : "text-emerald-700"
+                  }`}
               >
                 {saveError ?? saveMessage}
               </p>

@@ -153,7 +153,13 @@ export default function VendorProfilePage({
           <PortfolioShowcase media={portfolioMedia} />
         </div>
       }
-      sidebar={<VendorProfileSidebar />}
+      sidebar={
+        <VendorProfileSidebar
+          vendorId={vendor.id}
+          vendorSlug={vendor.slug}
+          services={vendor.services}
+        />
+      }
       bottom={<TestimonialsSection />}
     />
   );

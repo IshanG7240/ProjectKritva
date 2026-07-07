@@ -5,12 +5,17 @@ import { ulidSchema, paisaSchema } from "./api.js";
 // 1. Payment Action Schemas
 // ==========================================
 export const initiatePaymentSchema = z.object({
-  milestone_id: ulidSchema,
+  booking_id: ulidSchema,
 });
 export type InitiatePaymentInput = z.infer<typeof initiatePaymentSchema>;
 
+export const simulateCapturePaymentSchema = z.object({
+  booking_id: ulidSchema,
+});
+export type SimulateCapturePaymentInput = z.infer<typeof simulateCapturePaymentSchema>;
+
 export const releasePaymentSchema = z.object({
-  milestone_id: ulidSchema,
+  booking_id: ulidSchema,
 });
 export type ReleasePaymentInput = z.infer<typeof releasePaymentSchema>;
 

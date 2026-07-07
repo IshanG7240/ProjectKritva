@@ -1,0 +1,73 @@
+const RETURN_TO_KEY = "kritva:returnTo";
+
+export const DEFAULT_VENDOR_LEAD_TIME_DAYS = 7;
+
+export function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function getMinEventDate(leadTimeDays: number): string {
+  const minDate = new Date();
+  minDate.setHours(0, 0, 0, 0);
+  minDate.setDate(minDate.getDate() + leadTimeDays);
+  return formatLocalDate(minDate);
+}
+
+export function isEventDateValid(
+  eventDate: string,
+  leadTimeDays: number,
+): boolean {
+  return eventDate >= getMinEventDate(leadTimeDays);
+}
+
+export function isSafeReturnTo(path: string): boolean {
+  return path.startsWith("/") && !path.startsWith("//");
+}
+
+export function storeReturnTo(path: string): void {
+  if (typeof window === "undefined" || !isSafeReturnTo(path)) return;
+  sessionStorage.setItem(RETURN_TO_KEY, path);
+}
+
+export function consumeReturnTo(): string | null {
+  if (typeof window === "undefined") return null;
+  const path = sessionStorage.getItem(RETURN_TO_KEY);
+  sessionStorage.removeItem(RETURN_TO_KEY);
+  if (!path || !isSafeReturnTo(path)) return null;
+  return path;
+}
+
+export function buildLoginUrl(returnTo: string): string {
+  return `/login?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
+export function formatInr(paisa: number): string {
+  return `₹${Math.round(paisa / 100).toLocaleString("en-IN")}`;
+}
+
+export function formatEventDate(raw: string): string {
+  const iso = raw.includes("T") ? raw.slice(0, 10) : raw;
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function customerFirstName(fullName: string): string {
+  const trimmed = fullName.trim();
+  if (!trimmed) return "Customer";
+  return trimmed.split(/\s+/)[0] ?? trimmed;
+}
+
+export function formatServiceSummary(
+  details: Array<{ name: string }> | null | undefined,
+): string {
+  if (!details?.length) return "—";
+  return details.map((d) => d.name).join(", ");
+}

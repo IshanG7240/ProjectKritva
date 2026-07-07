@@ -7,7 +7,7 @@
  */
 
 import { LenisProvider } from "@/lib/lenis-provider";
-import { MarketingNav } from "@/components/marketing/MarketingNav";
+import { AppNav } from "@/components/layout/app-nav";
 import { HeroSection } from "@/components/marketing/HeroSection";
 import { VendorRegisterSection } from "@/components/marketing/VendorRegisterSection";
 import { EscrowSection } from "@/components/marketing/EscrowSection";
@@ -17,7 +17,7 @@ import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 export default function MarketingHomePage() {
   return (
     <LenisProvider>
-      <MarketingNav />
+      <AppNav />
       <main>
         <HeroSection />
         <VendorRegisterSection />

@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { storeReturnTo, isSafeReturnTo } from "@/lib/booking-form";
 import { Loader2 } from "lucide-react";
+import { AppNav } from "@/components/layout/app-nav";
 import { Button } from "@/components/ui/button";
 
 /** Login page — triggers Google OAuth redirect via Supabase. */
@@ -13,6 +15,11 @@ export default function LoginPage() {
   async function handleGoogleLogin() {
     setLoading(true);
     setError(null);
+
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+    if (returnTo && isSafeReturnTo(returnTo)) {
+      storeReturnTo(returnTo);
+    }
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -30,7 +37,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col bg-background">
+      <AppNav />
+      <div className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Brand */}
         <div className="space-y-2 text-center">
@@ -104,6 +113,7 @@ export default function LoginPage() {
           By continuing, you agree to Kritva&apos;s Terms of Service and Privacy
           Policy.
         </p>
+      </div>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { VendorListItem } from "@kritva/types/vendor";
 import { apiClient } from "@/lib/api-client";
-import { MarketingNav } from "@/components/marketing/MarketingNav";
+import { AppNav } from "@/components/layout/app-nav";
 import { Footer } from "@/components/vendor/profile/Footer";
 import { VendorCard, VendorCardSkeletonGrid } from "@/components/vendor/VendorCard";
 import {
@@ -159,9 +159,9 @@ export default function VendorsPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-mk-bg">
-      <MarketingNav />
+      <AppNav />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 pb-10 pt-20">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 pb-10 pt-8">
         <VendorDirectoryFilters
           filters={filters}
           onChange={setFilters}

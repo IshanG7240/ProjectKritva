@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { milestoneNameSchema } from "./enums.js";
+import {
+  bookingStatusSchema,
+  milestoneNameSchema,
+  milestonePaymentStatusSchema,
+} from "./enums.js";
 import { ulidSchema, paisaSchema } from "./api.js";
 
 // ==========================================
@@ -73,6 +77,15 @@ export const counterBookingSchema = z.object({
 });
 export type CounterBookingInput = z.infer<typeof counterBookingSchema>;
 
+export const cancelBookingSchema = z.object({
+  reason: z
+    .string()
+    .max(1000, "Reason cannot exceed 1000 characters")
+    .optional()
+    .nullable(),
+});
+export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
+
 // ==========================================
 // 3. Milestone Validation Schemas
 // ==========================================
@@ -117,3 +130,111 @@ export const confirmBookingSchema = z
     }
   );
 export type ConfirmBookingInput = z.infer<typeof confirmBookingSchema>;
+
+// ==========================================
+// 4. Booking List Schemas
+// ==========================================
+export const listBookingsQuerySchema = z.object({
+  status: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (!value) return undefined;
+      const parts = value
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (parts.length === 0) return undefined;
+      const parsed = z.array(bookingStatusSchema).safeParse(parts);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid status filter.",
+          path: ["status"],
+        });
+        return z.NEVER;
+      }
+      return parsed.data;
+    }),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: ulidSchema.optional(),
+  role: z.enum(["customer", "vendor"]).optional(),
+});
+export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;
+
+export const bookingListItemSchema = z.object({
+  id: ulidSchema,
+  vendor_id: ulidSchema,
+  customer_id: ulidSchema,
+  event_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  event_type: z.string(),
+  guest_count: z.number().int().positive().nullable(),
+  total_amount: paisaSchema,
+  notes: z.string().nullable(),
+  status: bookingStatusSchema,
+  service_details: z.array(bookingServiceDetailSchema),
+  counter_amount: paisaSchema.nullable(),
+  counter_message: z.string().nullable(),
+  decline_reason: z.string().nullable(),
+  vendor_business_name: z.string(),
+  customer_display_name: z.string(),
+  customer_first_name: z.string(),
+});
+export type BookingListItem = z.infer<typeof bookingListItemSchema>;
+
+// ==========================================
+// 5. Booking Detail Response Schemas
+// ==========================================
+export const bookingEventSchema = z.object({
+  id: ulidSchema,
+  from_status: z.string(),
+  to_status: bookingStatusSchema,
+  actor_id: ulidSchema,
+  actor_role: z.string(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  created_at: z.string().datetime(),
+});
+export type BookingEventResponse = z.infer<typeof bookingEventSchema>;
+
+export const bookingMilestoneResponseSchema = z.object({
+  id: ulidSchema,
+  name: milestoneNameSchema,
+  label: z.string(),
+  amount: paisaSchema,
+  percentage: z.number(),
+  due_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  payment_status: milestonePaymentStatusSchema,
+  released_at: z.string().datetime().nullable(),
+});
+export type BookingMilestoneResponse = z.infer<typeof bookingMilestoneResponseSchema>;
+
+export const bookingDetailSchema = z.object({
+  id: ulidSchema,
+  vendor_id: ulidSchema,
+  customer_id: ulidSchema,
+  event_id: ulidSchema.nullable(),
+  event_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/),
+  event_type: z.string(),
+  guest_count: z.number().int().positive().nullable(),
+  total_amount: paisaSchema,
+  notes: z.string().nullable(),
+  city_id: z.string(),
+  status: bookingStatusSchema,
+  service_details: z.array(bookingServiceDetailSchema),
+  counter_amount: paisaSchema.nullable(),
+  counter_message: z.string().nullable(),
+  decline_reason: z.string().nullable(),
+  vendor_business_name: z.string(),
+  customer_display_name: z.string(),
+  customer_first_name: z.string(),
+  milestones: z.array(bookingMilestoneResponseSchema),
+  booking_events: z.array(bookingEventSchema),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+export type BookingDetail = z.infer<typeof bookingDetailSchema>;
