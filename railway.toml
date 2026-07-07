@@ -1,0 +1,15 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install && pnpm turbo build --filter=@kritva/api"
+watchPatterns = ["packages/api/**", "packages/db/**", "packages/types/**", "packages/notifications/**", "packages/payments/**"]
+
+[deploy]
+startCommand = "node packages/api/dist/server.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[env]
+HUSKY = "0"
+NODE_ENV = "production"

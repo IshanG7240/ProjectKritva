@@ -60,6 +60,8 @@ app.use(
   })
 );
 
+app.get("/health", (c) => c.json({ data: { status: "ok" }, error: null }));
+
 // Mount business-domain routes
 app.route("/v1/auth", authRouter);
 app.route("/v1/vendors", vendorsRouter);

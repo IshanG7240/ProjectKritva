@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/server.ts",
-    "build": "tsc",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/server.js",
     "start": "node dist/server.js",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
@@ -32,6 +32,7 @@
     "@kritva/eslint-config": "workspace:*",
     "@kritva/tsconfig": "workspace:*",
     "@types/node": "^22.15.3",
+    "esbuild": "^0.25.12",
     "eslint": "^9.39.1",
     "tsx": "^4.22.4",
     "typescript": "5.9.2"
