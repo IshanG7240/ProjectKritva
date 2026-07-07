@@ -6,12 +6,12 @@ nixPkgs = ["nodejs_22", "openssl"]
 
 [phases.install]
 cmds = [
-  "npm install -g pnpm@11.9.0 && HUSKY=0 pnpm install --frozen-lockfile",
+  "HUSKY=0 npx -y pnpm@11.9.0 install --frozen-lockfile",
 ]
 
 [phases.build]
 cmds = [
-  "npm install -g pnpm@11.9.0 && pnpm turbo build --filter=@kritva/api",
+  "npx -y pnpm@11.9.0 turbo build --filter=@kritva/api",
 ]
 
 [start]
