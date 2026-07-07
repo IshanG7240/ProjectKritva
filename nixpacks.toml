@@ -1,0 +1,21 @@
+# Railway/Nixpacks: avoid Corepack + pnpm 11 (ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING).
+# Install pnpm 11 directly; the repo pins pnpm@11.9.0 in package.json.
+
+[phases.setup]
+nixPkgs = ["nodejs_22", "openssl"]
+
+[phases.install]
+cmds = [
+  "npm install -g pnpm@11.9.0",
+  "HUSKY=0 pnpm install --frozen-lockfile",
+]
+
+[phases.build]
+cmds = ["pnpm turbo build --filter=@kritva/api"]
+
+[start]
+cmd = "node packages/api/dist/server.js"
+
+[variables]
+HUSKY = "0"
+NODE_ENV = "production"
