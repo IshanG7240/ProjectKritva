@@ -1,18 +1,41 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/hooks/use-require-auth";
 import { useVendorProfileDraft } from "@/hooks/use-vendor-profile-draft";
 import { uploadVendorMediaFile } from "@/lib/upload-vendor-media";
+import { apiClient } from "@/lib/api-client";
+import type { VendorReadinessResponse } from "@kritva/types";
 import { ManageEditToolbar } from "@/components/vendor/edit/ManageEditToolbar";
 import { VendorProfileLayout } from "@/components/vendor/profile/VendorProfileLayout";
-import { HeroGallery } from "@/components/vendor/profile/HeroGallery";
+import { VendorGoLivePanel } from "@/components/vendor/profile/VendorGoLivePanel";
+import { HeroGallery, MAX_BANNER_PHOTOS } from "@/components/vendor/profile/HeroGallery";
 import { VendorHeader } from "@/components/vendor/profile/VendorHeader";
 import { AboutSection } from "@/components/vendor/profile/AboutSection";
-import { ServicesTable } from "@/components/vendor/profile/ServicesTable";
+import { PackagesSection } from "@/components/vendor/profile/PackagesSection";
 import { PortfolioShowcase } from "@/components/vendor/profile/PortfolioShowcase";
 import { VendorProfileSidebar } from "@/components/vendor/profile/VendorProfileSidebar";
 import { TestimonialsSection } from "@/components/vendor/profile/TestimonialsSection";
+import { VendorRatingSection } from "@/components/vendor/profile/VendorRatingSection";
+
+async function fetchVendorReadiness(): Promise<VendorReadinessResponse> {
+  const res = await apiClient.get<VendorReadinessResponse>(
+    "/v1/vendors/me/readiness",
+  );
+  if (res.error) throw new Error(res.error.message);
+  return res.data!;
+}
+
+async function submitVendorForReview() {
+  const res = await apiClient.post<{
+    id: string;
+    verification_status: string;
+    submitted_at: string;
+  }>("/v1/vendors/me/submit", {});
+  if (res.error) throw new Error(res.error.message);
+  return res.data!;
+}
 
 function formatVendorLocation(cityId: string): string {
   const cityLabel = cityId
@@ -38,6 +61,7 @@ function ManageSidebar() {
 }
 
 function VendorProfileEditor() {
+  const queryClient = useQueryClient();
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
   const [uploadingPfp, setUploadingPfp] = useState(false);
@@ -54,50 +78,84 @@ function VendorProfileEditor() {
     isDirty,
     saveAll,
     discardChanges,
+    load,
     updateProfile,
-    updateService,
-    addService,
-    removeService,
+    updatePackage,
+    addPackage,
+    deactivatePackage,
+    reactivatePackage,
+    removeLocalPackage,
     addMedia,
     removeMedia,
-    updateMediaAlt,
   } = useVendorProfileDraft();
 
-  async function handleBannerUpload(file: File) {
+  const verificationStatus =
+    saved?.verification_status ?? draft?.verification_status ?? "draft";
+
+  const {
+    data: readiness,
+    isLoading: readinessLoading,
+  } = useQuery({
+    queryKey: ["vendor-readiness"],
+    queryFn: fetchVendorReadiness,
+    enabled: !loading && !!draft && verificationStatus !== "approved",
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: submitVendorForReview,
+    onSuccess: async () => {
+      await load();
+      await queryClient.invalidateQueries({ queryKey: ["vendor-readiness"] });
+      await queryClient.invalidateQueries({ queryKey: ["vendor-me-status"] });
+      setSaveMessage("Profile submitted for review.");
+    },
+  });
+
+  async function handleBannerUpload(files: File[]) {
     if (!draft) return;
+    const bannerCount = draft.media.filter(
+      (item) => item.section === "banner",
+    ).length;
+    const remaining = Math.max(0, MAX_BANNER_PHOTOS - bannerCount);
+    if (remaining === 0) return;
+
     setUploadingBanner(true);
     try {
-      const url = await uploadVendorMediaFile(file, draft.id, "banners");
-      addMedia({
-        url,
-        thumbnail_url: null,
-        detail_url: null,
-        type: "image",
-        section: "banner",
-        position: draft.media.filter((item) => item.section === "banner").length,
-        alt_text: file.name.replace(/\.[^.]+$/, "") || "Banner image",
-      });
+      for (const file of files.slice(0, remaining)) {
+        const url = await uploadVendorMediaFile(file, draft.id, "banners");
+        addMedia({
+          url,
+          thumbnail_url: null,
+          detail_url: null,
+          type: "image",
+          section: "banner",
+          position: draft.media.filter((item) => item.section === "banner").length,
+          alt_text: null,
+        });
+      }
     } finally {
       setUploadingBanner(false);
     }
   }
 
-  async function handlePortfolioUpload(file: File) {
+  async function handlePortfolioUpload(files: File[]) {
     if (!draft) return;
     setUploadingPortfolio(true);
     try {
-      const url = await uploadVendorMediaFile(file, draft.id, "portfolio");
-      const type = file.type.startsWith("video/") ? "video" : "image";
-      addMedia({
-        url,
-        thumbnail_url: null,
-        detail_url: null,
-        type,
-        section: "portfolio",
-        position: draft.media.filter((item) => item.section === "portfolio")
-          .length,
-        alt_text: file.name.replace(/\.[^.]+$/, "") || "Portfolio item",
-      });
+      for (const file of files) {
+        const url = await uploadVendorMediaFile(file, draft.id, "portfolio");
+        const type = file.type.startsWith("video/") ? "video" : "image";
+        addMedia({
+          url,
+          thumbnail_url: null,
+          detail_url: null,
+          type,
+          section: "portfolio",
+          position: draft.media.filter((item) => item.section === "portfolio")
+            .length,
+          alt_text: null,
+        });
+      }
     } finally {
       setUploadingPortfolio(false);
     }
@@ -119,6 +177,7 @@ function VendorProfileEditor() {
     try {
       await saveAll();
       setSaveMessage("Profile saved successfully.");
+      await queryClient.invalidateQueries({ queryKey: ["vendor-readiness"] });
     } catch {
       // saveError is set in hook
     }
@@ -156,10 +215,9 @@ function VendorProfileEditor() {
     );
   }
 
-  const activeServices = draft.services.filter((s) => s.is_active !== false);
-  const verificationStatus =
-    saved?.verification_status ?? draft.verification_status;
   const canPreview = verificationStatus === "approved";
+  const verificationNotes =
+    saved?.verification_notes ?? draft.verification_notes ?? null;
   const bannerMedia = draft.media.filter(
     (item) => (item.section ?? "portfolio") === "banner",
   );
@@ -192,17 +250,22 @@ function VendorProfileEditor() {
               </p>
             </div>
           )}
-          {verificationStatus !== "approved" && (
-            <div className="border-b border-amber-200 bg-amber-50 px-6 py-2">
-              <p className="mx-auto max-w-6xl text-sm text-amber-900">
-                Your profile is{" "}
-                <span className="font-medium capitalize">
-                  {verificationStatus.replace("_", " ")}
-                </span>
-                . It will appear publicly once approved.
-              </p>
-            </div>
-          )}
+          <VendorGoLivePanel
+            verificationStatus={verificationStatus}
+            verificationNotes={verificationNotes}
+            readiness={readiness}
+            readinessLoading={readinessLoading}
+            isDirty={isDirty}
+            isSubmitting={submitMutation.isPending}
+            submitError={
+              submitMutation.isError
+                ? submitMutation.error instanceof Error
+                  ? submitMutation.error.message
+                  : "Submit failed"
+                : null
+            }
+            onSubmit={() => submitMutation.mutate()}
+          />
         </>
       }
       hero={
@@ -253,25 +316,40 @@ function VendorProfileEditor() {
               updateProfile({ description })
             }
           />
-          <ServicesTable
-            services={activeServices}
+          <PackagesSection
+            packages={draft.packages}
             editable={!isPreviewMode}
-            onServiceChange={updateService}
-            onAddService={addService}
-            onRemoveService={removeService}
+            onPackageChange={updatePackage}
+            onAddPackage={addPackage}
+            onDeactivatePackage={deactivatePackage}
+            onReactivatePackage={reactivatePackage}
+            onRemoveLocalPackage={removeLocalPackage}
           />
           <PortfolioShowcase
             media={portfolioMedia}
+            vendorSlug={draft.slug}
             editable={!isPreviewMode}
             uploading={uploadingPortfolio}
             onUpload={handlePortfolioUpload}
             onRemove={removeMedia}
-            onAltChange={updateMediaAlt}
           />
         </div>
       }
       sidebar={isPreviewMode ? <VendorProfileSidebar /> : <ManageSidebar />}
-      bottom={isPreviewMode ? <TestimonialsSection /> : undefined}
+      bottom={
+        isPreviewMode ? (
+          <>
+            <VendorRatingSection
+              avgRating={draft.avg_rating}
+              ratingCount={draft.rating_count}
+              showPlaceholderRating={
+                draft.avg_rating == null || draft.rating_count === 0
+              }
+            />
+            <TestimonialsSection />
+          </>
+        ) : undefined
+      }
     />
   );
 }

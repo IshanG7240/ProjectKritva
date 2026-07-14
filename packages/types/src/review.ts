@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ulidSchema } from "./api.js";
+import { ulidSchema } from "./api";
 
 // ==========================================
 // 1. Review Creation Schema

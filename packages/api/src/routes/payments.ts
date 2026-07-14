@@ -1,13 +1,406 @@
 import { Hono } from "hono";
 import { ulid } from "ulid";
-import { initiatePaymentSchema, releasePaymentSchema, simulateCapturePaymentSchema } from "@kritva/types";
+import {
+  createOrderSchema,
+  initiatePaymentSchema,
+  releasePaymentSchema,
+  simulateCapturePaymentSchema,
+  verifyPaymentSchema,
+} from "@kritva/types";
 import { db } from "@kritva/db/client";
 import { and, eq } from "drizzle-orm";
 import { bookings, bookingEvents, payments, bookingMilestones } from "@kritva/db";
+import {
+  createOrder,
+  getRazorpayKeyId,
+  OrderValidationError,
+  RazorpayApiError,
+  RazorpayAuthError,
+  verifyPaymentSignature,
+} from "@kritva/payments";
 import { supabaseAuth } from "../middleware/supabase-auth.js";
 import type { AuthVariables } from "../middleware/supabase-auth.js";
 
 export const paymentsRouter = new Hono<{ Variables: AuthVariables }>();
+
+interface BookingForPayment {
+  id: string;
+  customerId: string;
+  vendorId: string;
+  status: string;
+  totalAmount: number;
+}
+
+async function captureBookingPayment(
+  booking: BookingForPayment,
+  actorUserId: string,
+  gatewayOrderId: string,
+  gatewayPaymentId: string,
+): Promise<{ success: true; status: "payment_held" }> {
+  if (booking.status === "payment_held") {
+    return { success: true, status: "payment_held" };
+  }
+
+  if (booking.status !== "payment_pending") {
+    throw new Error(
+      `Cannot capture payment on a booking with status '${booking.status}'. Expected 'payment_pending'.`,
+    );
+  }
+
+  const [milestone] = await db
+    .select({ id: bookingMilestones.id })
+    .from(bookingMilestones)
+    .where(eq(bookingMilestones.bookingId, booking.id))
+    .limit(1);
+
+  if (!milestone) {
+    throw new Error("No payment milestone found for this booking.");
+  }
+
+  const paymentId = ulid();
+
+  await db.transaction(async (tx) => {
+    const [updatedBooking] = await tx
+      .update(bookings)
+      .set({ status: "payment_held", updatedAt: new Date() })
+      .where(
+        and(
+          eq(bookings.id, booking.id),
+          eq(bookings.status, "payment_pending"),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (!updatedBooking) {
+      throw new Error("Booking state changed during capture");
+    }
+
+    await tx.insert(payments).values({
+      id: paymentId,
+      bookingId: booking.id,
+      milestoneId: milestone.id,
+      customerId: booking.customerId,
+      vendorId: booking.vendorId,
+      amount: booking.totalAmount,
+      currency: "INR",
+      status: "captured",
+      escrowStatus: "held",
+      gatewayOrderId,
+      gatewayPaymentId,
+      capturedAt: new Date(),
+    });
+
+    await tx
+      .update(bookingMilestones)
+      .set({ paymentStatus: "held", paymentId })
+      .where(eq(bookingMilestones.id, milestone.id));
+
+    await tx.insert(bookingEvents).values({
+      id: ulid(),
+      bookingId: booking.id,
+      fromStatus: "payment_pending",
+      toStatus: "payment_held",
+      actorId: actorUserId,
+      actorRole: "customer",
+      metadata: {
+        amount: booking.totalAmount,
+        payment_id: paymentId,
+        gateway_order_id: gatewayOrderId,
+        gateway_payment_id: gatewayPaymentId,
+      },
+    });
+  });
+
+  return { success: true, status: "payment_held" };
+}
+
+/**
+ * POST /v1/payments/create-order
+ * Customer-only: vendor_accepted → payment_pending, then create a Razorpay order.
+ */
+paymentsRouter.post(
+  "/create-order",
+  supabaseAuth(),
+  async (c) => {
+    const body = await c.req.json();
+    const parsed = createOrderSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Request validation failed.",
+            fields: parsed.error.flatten().fieldErrors,
+          },
+        },
+        400,
+      );
+    }
+
+    const { booking_id } = parsed.data;
+    const actorUserId = c.get("user").id;
+
+    const [booking] = await db
+      .select({
+        id: bookings.id,
+        customerId: bookings.customerId,
+        vendorId: bookings.vendorId,
+        status: bookings.status,
+        totalAmount: bookings.totalAmount,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, booking_id))
+      .limit(1);
+
+    if (!booking) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "NOT_FOUND",
+            message: `Booking '${booking_id}' was not found.`,
+          },
+        },
+        404,
+      );
+    }
+
+    if (booking.customerId !== actorUserId) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "FORBIDDEN",
+            message: "You do not have permission to pay for this booking.",
+          },
+        },
+        403,
+      );
+    }
+
+    if (booking.status !== "vendor_accepted" && booking.status !== "payment_pending") {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "INVALID_STATE_TRANSITION",
+            message: `Cannot create order on a booking with status '${booking.status}'. Expected 'vendor_accepted' or 'payment_pending'.`,
+          },
+        },
+        409,
+      );
+    }
+
+    if (booking.status === "vendor_accepted") {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(bookings)
+          .set({ status: "payment_pending", updatedAt: new Date() })
+          .where(eq(bookings.id, booking_id));
+
+        await tx.insert(bookingEvents).values({
+          id: ulid(),
+          bookingId: booking_id,
+          fromStatus: "vendor_accepted",
+          toStatus: "payment_pending",
+          actorId: actorUserId,
+          actorRole: "customer",
+          metadata: { amount: booking.totalAmount },
+        });
+      });
+    }
+
+    try {
+      const order = await createOrder({
+        amount: booking.totalAmount,
+        currency: "INR",
+        receipt: booking_id,
+      });
+
+      return c.json(
+        {
+          data: {
+            order_id: order.order_id,
+            amount: order.amount,
+            currency: order.currency,
+            razorpay_key_id: getRazorpayKeyId(),
+          },
+          error: null,
+        },
+        200,
+      );
+    } catch (error: unknown) {
+      if (error instanceof OrderValidationError) {
+        return c.json(
+          {
+            data: null,
+            error: {
+              code: "VALIDATION_FAILED",
+              message: error.message,
+            },
+          },
+          400,
+        );
+      }
+
+      if (error instanceof RazorpayAuthError) {
+        return c.json(
+          {
+            data: null,
+            error: {
+              code: "RAZORPAY_AUTH_FAILED",
+              message: error.message,
+            },
+          },
+          401,
+        );
+      }
+
+      if (error instanceof RazorpayApiError) {
+        return c.json(
+          {
+            data: null,
+            error: {
+              code: "RAZORPAY_API_ERROR",
+              message: error.message,
+            },
+          },
+          500,
+        );
+      }
+
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "ORDER_CREATION_FAILED",
+            message: "Failed to create Razorpay order.",
+          },
+        },
+        500,
+      );
+    }
+  },
+);
+
+/**
+ * POST /v1/payments/verify-payment
+ * Customer-only: verify Razorpay signature, then payment_pending → payment_held.
+ */
+paymentsRouter.post(
+  "/verify-payment",
+  supabaseAuth(),
+  async (c) => {
+    const body = await c.req.json();
+    const parsed = verifyPaymentSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Request validation failed.",
+            fields: parsed.error.flatten().fieldErrors,
+          },
+        },
+        400,
+      );
+    }
+
+    const {
+      booking_id,
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+    } = parsed.data;
+    const actorUserId = c.get("user").id;
+
+    const signatureValid = verifyPaymentSignature(
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    );
+
+    if (!signatureValid) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "SIGNATURE_MISMATCH",
+            message: "Payment signature verification failed.",
+          },
+        },
+        400,
+      );
+    }
+
+    const [booking] = await db
+      .select({
+        id: bookings.id,
+        customerId: bookings.customerId,
+        vendorId: bookings.vendorId,
+        status: bookings.status,
+        totalAmount: bookings.totalAmount,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, booking_id))
+      .limit(1);
+
+    if (!booking) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "NOT_FOUND",
+            message: `Booking '${booking_id}' was not found.`,
+          },
+        },
+        404,
+      );
+    }
+
+    if (booking.customerId !== actorUserId) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "FORBIDDEN",
+            message: "You do not have permission to verify payment for this booking.",
+          },
+        },
+        403,
+      );
+    }
+
+    try {
+      const result = await captureBookingPayment(
+        booking,
+        actorUserId,
+        razorpay_order_id,
+        razorpay_payment_id,
+      );
+
+      return c.json({ data: result, error: null }, 200);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to verify payment";
+
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "VERIFY_FAILED",
+            message,
+          },
+        },
+        400,
+      );
+    }
+  },
+);
 
 /**
  * 1. POST /v1/payments/initiate
@@ -210,83 +603,15 @@ paymentsRouter.post(
       );
     }
 
-    const [milestone] = await db
-      .select({ id: bookingMilestones.id })
-      .from(bookingMilestones)
-      .where(eq(bookingMilestones.bookingId, booking_id))
-      .limit(1);
-
-    if (!milestone) {
-      return c.json(
-        {
-          data: null,
-          error: {
-            code: "INVALID_STATE",
-            message: "No payment milestone found for this booking.",
-          },
-        },
-        409,
-      );
-    }
-
     try {
-      const paymentId = ulid();
-
-      await db.transaction(async (tx) => {
-        const [updatedBooking] = await tx
-          .update(bookings)
-          .set({ status: "payment_held", updatedAt: new Date() })
-          .where(
-            and(
-              eq(bookings.id, booking_id),
-              eq(bookings.status, "payment_pending"),
-            ),
-          )
-          .returning({ id: bookings.id });
-
-        if (!updatedBooking) {
-          throw new Error("Booking state changed during capture");
-        }
-
-        await tx.insert(payments).values({
-          id: paymentId,
-          bookingId: booking_id,
-          milestoneId: milestone.id,
-          customerId: booking.customerId,
-          vendorId: booking.vendorId,
-          amount: booking.totalAmount,
-          currency: "INR",
-          status: "captured",
-          escrowStatus: "held",
-          capturedAt: new Date(),
-        });
-
-        await tx
-          .update(bookingMilestones)
-          .set({ paymentStatus: "held", paymentId })
-          .where(eq(bookingMilestones.id, milestone.id));
-
-        await tx.insert(bookingEvents).values({
-          id: ulid(),
-          bookingId: booking_id,
-          fromStatus: "payment_pending",
-          toStatus: "payment_held",
-          actorId: actorUserId,
-          actorRole: "customer",
-          metadata: {
-            amount: booking.totalAmount,
-            payment_id: paymentId,
-          },
-        });
-      });
-
-      return c.json(
-        {
-          data: { success: true, status: "payment_held" },
-          error: null,
-        },
-        200,
+      const result = await captureBookingPayment(
+        booking,
+        actorUserId,
+        "mock_order_12345",
+        "mock_pay_12345",
       );
+
+      return c.json({ data: result, error: null }, 200);
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to simulate capture";

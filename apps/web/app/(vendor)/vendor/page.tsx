@@ -9,7 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import {
   formatEventDate,
   formatInr,
-  formatServiceSummary,
+  formatPackageSummary,
 } from "@/lib/booking-form";
 import { AppNav } from "@/components/layout/app-nav";
 import {
@@ -44,8 +44,8 @@ const STATUS_LABELS: Record<string, string> = {
   customer_confirmed: "Confirmed",
 };
 
-interface ServiceDetail {
-  service_id: string;
+interface PackageDetail {
+  package_id: string;
   name: string;
   quantity: number;
   price_at_booking: number;
@@ -59,7 +59,7 @@ interface Booking {
   total_amount: number;
   notes: string | null;
   status: string;
-  service_details: ServiceDetail[];
+  package_details: PackageDetail[];
   customer_first_name?: string;
   counter_amount?: number | null;
   counter_message?: string | null;
@@ -75,6 +75,16 @@ const ACTIVE_STATUSES = new Set([
   "vendor_declined",
   "cancelled",
 ]);
+
+interface VendorMeStatus {
+  verification_status: string;
+}
+
+async function fetchVendorMeStatus(): Promise<VendorMeStatus> {
+  const res = await apiClient.get<{ vendor: VendorMeStatus }>("/v1/vendors/me");
+  if (res.error) throw new Error(res.error.message);
+  return res.data!.vendor;
+}
 
 async function fetchBookings(): Promise<Booking[]> {
   const res = await apiClient.get<Booking[]>("/v1/bookings?role=vendor");
@@ -169,7 +179,7 @@ function NewInquiryRow({
   acceptError: string | null;
 }) {
   const customer = booking.customer_first_name ?? "Customer";
-  const service = formatServiceSummary(booking.service_details);
+  const packageSummary = formatPackageSummary(booking.package_details);
 
   return (
     <li className="border-b border-mk-border last:border-b-0">
@@ -177,9 +187,9 @@ function NewInquiryRow({
         <BookingCell label="Customer">
           <p className={`${tdClassName} font-medium`}>{customer}</p>
         </BookingCell>
-        <BookingCell label="Service">
-          <p className={`${tdClassName} line-clamp-2`} title={service}>
-            {service}
+        <BookingCell label="Package">
+          <p className={`${tdClassName} line-clamp-2`} title={packageSummary}>
+            {packageSummary}
           </p>
         </BookingCell>
         <BookingCell label="Event Date">
@@ -262,7 +272,7 @@ function ViewOnlyRow({
   extra?: ReactNode;
 }) {
   const customer = booking.customer_first_name ?? "Customer";
-  const service = formatServiceSummary(booking.service_details);
+  const packageSummary = formatPackageSummary(booking.package_details);
 
   return (
     <li className="border-b border-mk-border last:border-b-0">
@@ -270,9 +280,9 @@ function ViewOnlyRow({
         <BookingCell label="Customer">
           <p className={`${tdClassName} font-medium`}>{customer}</p>
         </BookingCell>
-        <BookingCell label="Service">
-          <p className={`${tdClassName} line-clamp-2`} title={service}>
-            {service}
+        <BookingCell label="Package">
+          <p className={`${tdClassName} line-clamp-2`} title={packageSummary}>
+            {packageSummary}
           </p>
         </BookingCell>
         <BookingCell label="Event Date">
@@ -302,7 +312,7 @@ function ViewOnlyRow({
 
 function ActiveRow({ booking }: { booking: Booking }) {
   const customer = booking.customer_first_name ?? "Customer";
-  const service = formatServiceSummary(booking.service_details);
+  const packageSummary = formatPackageSummary(booking.package_details);
 
   return (
     <li className="border-b border-mk-border last:border-b-0">
@@ -310,9 +320,9 @@ function ActiveRow({ booking }: { booking: Booking }) {
         <BookingCell label="Customer">
           <p className={`${tdClassName} font-medium`}>{customer}</p>
         </BookingCell>
-        <BookingCell label="Service">
-          <p className={`${tdClassName} line-clamp-2`} title={service}>
-            {service}
+        <BookingCell label="Package">
+          <p className={`${tdClassName} line-clamp-2`} title={packageSummary}>
+            {packageSummary}
           </p>
         </BookingCell>
         <BookingCell label="Event Date">
@@ -562,6 +572,12 @@ export default function VendorDashboardPage() {
     enabled: !loading && !!user,
   });
 
+  const { data: vendorStatus } = useQuery({
+    queryKey: ["vendor-me-status"],
+    queryFn: fetchVendorMeStatus,
+    enabled: !loading && !!user,
+  });
+
   const acceptMutation = useMutation({
     mutationFn: acceptBooking,
     onSuccess: () => {
@@ -616,6 +632,29 @@ export default function VendorDashboardPage() {
           Manage inquiries, counter-offers, and active bookings.
         </p>
 
+        {vendorStatus && vendorStatus.verification_status !== "approved" ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="font-sans text-sm font-medium text-amber-950">
+              {vendorStatus.verification_status === "pending_review"
+                ? "Your profile is under review"
+                : vendorStatus.verification_status === "rejected"
+                  ? "Your profile needs updates before going live"
+                  : "Finish your vendor profile to start receiving inquiries"}
+            </p>
+            <p className="mt-1 font-sans text-sm text-amber-900/90">
+              {vendorStatus.verification_status === "pending_review"
+                ? "You will appear in search once an admin approves your listing."
+                : "Complete your listing and submit it for review."}
+            </p>
+            <Link
+              href="/vendor/profile"
+              className="mt-2 inline-flex font-sans text-sm font-medium text-mk-navy underline-offset-2 hover:underline"
+            >
+              Go to profile editor
+            </Link>
+          </div>
+        ) : null}
+
         {isLoading ? (
           <p className="mt-4 font-sans text-sm text-mk-muted">
             Loading your pipeline…
@@ -632,7 +671,7 @@ export default function VendorDashboardPage() {
               emptyMessage="No new inquiries at this time."
               columns={[
                 "Customer",
-                "Service",
+                "Package",
                 "Event Date",
                 "Type",
                 "Guests",
@@ -669,7 +708,7 @@ export default function VendorDashboardPage() {
               emptyMessage="No counter-offers waiting on the customer."
               columns={[
                 "Customer",
-                "Service",
+                "Package",
                 "Event Date",
                 "Counter amount",
                 "Status",
@@ -701,7 +740,7 @@ export default function VendorDashboardPage() {
               emptyMessage="No bookings awaiting customer payment."
               columns={[
                 "Customer",
-                "Service",
+                "Package",
                 "Event Date",
                 "Amount",
                 "Status",
@@ -723,7 +762,7 @@ export default function VendorDashboardPage() {
               emptyMessage="No active or completed bookings yet."
               columns={[
                 "Customer",
-                "Service",
+                "Package",
                 "Event Date",
                 "Amount",
                 "Status",

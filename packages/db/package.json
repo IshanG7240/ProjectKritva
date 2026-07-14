@@ -19,6 +19,7 @@
     "db:studio": "drizzle-kit studio",
     "db:migrate:raw": "./migrations/run_all.sh",
     "db:seed": "tsx src/seed.ts",
+    "db:promote-admin": "tsx src/promote-admin.ts",
     "clean": "rm -rf .turbo node_modules"
   },
   "dependencies": {

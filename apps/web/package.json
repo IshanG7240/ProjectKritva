@@ -18,6 +18,7 @@
     "@base-ui/react": "^1.5.0",
     "@hookform/resolvers": "^5.4.0",
     "@kritva/types": "workspace:*",
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.110.0",
     "@tanstack/react-query": "^5.101.0",
     "class-variance-authority": "^0.7.1",

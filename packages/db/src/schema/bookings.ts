@@ -104,9 +104,9 @@ export const bookings = pgTable(
     eventId: text("event_id"), // soft ref to events.id; nullable
     vendorId: text("vendor_id").notNull(), // soft ref to vendors.id
     customerId: text("customer_id").notNull(), // soft ref to users.id
-    serviceDetails: jsonb("service_details")
+    packageDetails: jsonb("package_details")
       .notNull()
-      .default(sql`'{}'::jsonb`),
+      .default(sql`'[]'::jsonb`),
     totalAmount: integer("total_amount").notNull(), // paisa
     status: text("status")
       .notNull()

@@ -1,6 +1,6 @@
-// Vendor domain: vendors, vendor_services, vendor_media,
+// Vendor domain: vendors, vendor_packages, vendor_media,
 // vendor_availability, vendor_documents
-// Mirrors migrations/002_vendor_domain.sql exactly.
+// Mirrors migrations/002_vendor_domain.sql + 016_vendor_packages.sql.
 
 import { sql } from "drizzle-orm";
 import {
@@ -8,6 +8,7 @@ import {
   customType,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -20,10 +21,9 @@ import {
   DOCUMENT_TYPES,
   MEDIA_SECTIONS,
   MEDIA_TYPES,
-  SERVICE_UNITS,
+  PACKAGE_UNITS,
   VERIFICATION_STATUSES,
 } from "@kritva/types";
-
 // tsvector is not a built-in Drizzle pg-core column type; we declare a
 // custom type so Drizzle carries it through without trying to cast it.
 const tsvector = customType<{ data: string }>({
@@ -60,11 +60,12 @@ export const vendors = pgTable(
     }),
     verificationStatus: text("verification_status")
       .notNull()
-      .default("pending_review")
+      .default("draft")
       .$type<(typeof VERIFICATION_STATUSES)[number]>(),
     verificationNotes: text("verification_notes"),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     verifiedBy: text("verified_by"), // soft ref to users.id
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
     searchVector: tsvector("search_vector"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -92,37 +93,49 @@ export type Vendor = typeof vendors.$inferSelect;
 export type NewVendor = typeof vendors.$inferInsert;
 
 // ============================================================
-// VENDOR_SERVICES
+// VENDOR_PACKAGES
 // ============================================================
-export const vendorServices = pgTable(
-  "vendor_services",
+export const vendorPackages = pgTable(
+  "vendor_packages",
   {
     id: text("id")
       .primaryKey()
       .default(sql`generate_ulid()`),
-    vendorId: text("vendor_id").notNull(),
+    vendorId: text("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 200 }).notNull(),
     description: text("description"),
-    priceMin: integer("price_min").notNull(), // paisa
-    priceMax: integer("price_max").notNull(), // paisa
+    price: integer("price").notNull(), // paisa
     unit: text("unit")
       .notNull()
-      .default("per_event")
-      .$type<(typeof SERVICE_UNITS)[number]>(),
+      .default("flat")
+      .$type<(typeof PACKAGE_UNITS)[number]>(),
+    minQuantity: integer("min_quantity"),
+    inclusions: jsonb("inclusions")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => [
-    index("idx_vs_vendor").on(t.vendorId),
-    index("idx_vs_active").on(t.vendorId),
+    index("idx_vp_vendor").on(t.vendorId),
+    index("idx_vp_vendor_active").on(t.vendorId, t.isActive),
   ],
 );
 
-export type VendorService = typeof vendorServices.$inferSelect;
-export type NewVendorService = typeof vendorServices.$inferInsert;
-
+export type VendorPackage = typeof vendorPackages.$inferSelect;
+export type NewVendorPackage = typeof vendorPackages.$inferInsert;
 // ============================================================
 // VENDOR_MEDIA
 // ============================================================

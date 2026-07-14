@@ -10,14 +10,11 @@ import { db } from "@kritva/db/client";
 import { users, vendors } from "@kritva/db";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
 
-// Router definition with AuthVariables so c.var.user is typed
 const authRouter = new Hono<{ Variables: AuthVariables }>();
 
-// Request body schema for sync endpoint
 const syncRequestSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name cannot exceed 100 characters"),
   email: z.string().email("Invalid email address").optional(),
-  // Phone is not provided by Google OAuth — must be optional/nullable.
   phone: z.string().min(10).max(15).nullish(),
 });
 
@@ -29,7 +26,6 @@ authRouter.post("/sync", supabaseAuth(), async (c) => {
   const authUser = c.get("user");
   const userId = authUser.id;
 
-  // 1. Query public.users table to see if user already exists
   const [existingUser] = await db
     .select()
     .from(users)
@@ -37,40 +33,59 @@ authRouter.post("/sync", supabaseAuth(), async (c) => {
     .limit(1);
 
   if (existingUser) {
-    // User exists, return 200 OK with details
-    return c.json({
-      data: {
-        user: {
-          id: existingUser.id,
-          email: existingUser.email,
-          phone: existingUser.phone,
-          name: existingUser.name,
-          role: existingUser.role,
-          onboarding_complete: existingUser.onboardingComplete,
+    if (existingUser.status === "suspended" || existingUser.status === "banned") {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "FORBIDDEN",
+            message:
+              existingUser.status === "banned"
+                ? "Your account has been banned."
+                : "Your account has been suspended.",
+          },
         },
+        403,
+      );
+    }
+
+    return c.json(
+      {
+        data: {
+          user: {
+            id: existingUser.id,
+            email: existingUser.email,
+            phone: existingUser.phone,
+            name: existingUser.name,
+            role: existingUser.role,
+            onboarding_complete: existingUser.onboardingComplete,
+          },
+        },
+        error: null,
       },
-      error: null,
-    }, 200);
+      200,
+    );
   }
 
-  // 2. User does not exist, extract and validate request body
   const body = await c.req.json();
   const parsed = syncRequestSchema.safeParse(body);
 
   if (!parsed.success) {
-    return c.json({
-      data: null,
-      error: {
-        code: "VALIDATION_FAILED",
-        message: "Request validation failed.",
-        fields: parsed.error.flatten().fieldErrors,
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Request validation failed.",
+          fields: parsed.error.flatten().fieldErrors,
+        },
       },
-    }, 400);
+      400,
+    );
   }
 
   const { name, email, phone } = parsed.data;
 
-  // 3. Insert using the Supabase auth subject as the primary key (lookup key above).
   await db.insert(users).values({
     id: userId,
     phone: phone ?? null,
@@ -80,23 +95,24 @@ authRouter.post("/sync", supabaseAuth(), async (c) => {
     onboardingComplete: false,
   });
 
-  // 4. Return 210 Created envelope
-  return c.json({
-    data: {
-      user: {
-        id: userId,
-        email: email || authUser.email,
-        phone: phone ?? null,
-        name,
-        role: "customer",
-        onboarding_complete: false,
+  return c.json(
+    {
+      data: {
+        user: {
+          id: userId,
+          email: email || authUser.email,
+          phone: phone ?? null,
+          name,
+          role: "customer",
+          onboarding_complete: false,
+        },
       },
+      error: null,
     },
-    error: null,
-  }, 210 as Parameters<typeof c.json>[1]);
+    210 as Parameters<typeof c.json>[1],
+  );
 });
 
-// Inline schema for onboarding body — strict shape, cross-field refinement
 const onboardingSchema = z
   .object({
     role: z.enum(["customer", "vendor"]),
@@ -107,16 +123,12 @@ const onboardingSchema = z
     { message: "business_name is required when role is vendor", path: ["business_name"] },
   );
 
-/**
- * Converts a business name into a URL-safe slug with a short random suffix.
- * Example: "Delhi Dream Decorators" → "delhi-dream-decorators-a3f2"
- */
 function toSlug(businessName: string): string {
   const base = businessName
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-") // replace non-alphanumeric runs with a dash
-    .replace(/^-+|-+$/g, "");    // trim leading/trailing dashes
-  const suffix = Math.random().toString(36).slice(2, 6); // 4-char random suffix
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const suffix = Math.random().toString(36).slice(2, 6);
   return `${base}-${suffix}`;
 }
 
@@ -128,7 +140,6 @@ authRouter.patch("/onboarding", supabaseAuth(), async (c) => {
   const authUser = c.get("user");
   const userId = authUser.id;
 
-  // 1. Parse and validate request body
   const body = await c.req.json();
   const parsed = onboardingSchema.safeParse(body);
 
@@ -146,15 +157,35 @@ authRouter.patch("/onboarding", supabaseAuth(), async (c) => {
     );
   }
 
+  const [existingUser] = await db
+    .select({ id: users.id, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (
+    existingUser &&
+    (existingUser.role === "admin" || existingUser.role === "superadmin")
+  ) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Admin accounts cannot change role via onboarding.",
+        },
+      },
+      403,
+    );
+  }
+
   const { role, business_name } = parsed.data;
 
-  // 2. Update public.users — set role and mark onboarding done
   await db
     .update(users)
     .set({ role, onboardingComplete: true })
     .where(eq(users.id, userId));
 
-  // 3. Upsert vendor profile when role is vendor
   if (role === "vendor" && business_name) {
     await db
       .insert(vendors)
@@ -162,6 +193,7 @@ authRouter.patch("/onboarding", supabaseAuth(), async (c) => {
         userId,
         businessName: business_name,
         slug: toSlug(business_name),
+        verificationStatus: "draft",
       })
       .onConflictDoUpdate({
         target: vendors.userId,
@@ -169,7 +201,6 @@ authRouter.patch("/onboarding", supabaseAuth(), async (c) => {
       });
   }
 
-  // 4. Return spec-mapped 200 OK envelope
   return c.json(
     {
       data: {

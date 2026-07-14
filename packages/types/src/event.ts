@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { eventTypeSchema, eventStatusSchema } from "./enums.js";
-import { paisaSchema } from "./api.js";
+import { eventTypeSchema, eventStatusSchema } from "./enums";
+import { paisaSchema } from "./api";
 
 // ==========================================
 // 1. Event CRUD Validation Schemas

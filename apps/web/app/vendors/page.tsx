@@ -195,6 +195,9 @@ export default function VendorsPage() {
                   price_min={vendor.price_min}
                   price_max={vendor.price_max}
                   unit={vendor.unit}
+                  units_mixed={vendor.units_mixed}
+                  profile_photo_url={vendor.profile_photo_url}
+                  cover_image={vendor.cover_image}
                 />
               ))}
             </div>

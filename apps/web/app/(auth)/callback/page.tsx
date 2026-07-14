@@ -68,7 +68,15 @@ export default function CallbackPage() {
         return;
       }
 
-      router.replace(role === "vendor" ? "/vendor" : "/vendors");
+      if (role === "vendor") {
+        router.replace("/vendor");
+        return;
+      }
+      if (role === "admin" || role === "superadmin") {
+        router.replace("/admin");
+        return;
+      }
+      router.replace("/vendors");
     }
 
     handleCallback();

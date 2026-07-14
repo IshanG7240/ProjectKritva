@@ -17,15 +17,62 @@ interface HeroGalleryProps {
   media?: VendorMediaItem[];
   editable?: boolean;
   uploading?: boolean;
-  onUpload?: (file: File) => Promise<void>;
+  onUpload?: (files: File[]) => Promise<void>;
   onRemove?: (mediaId: string) => void;
 }
+
+interface GalleryCell {
+  colSpan: number;
+  rowSpan: number;
+}
+
+const BANNER_GRID_HEIGHT = "h-[280px] md:h-[400px]";
+export const MAX_BANNER_PHOTOS = 5;
 
 function isUnsplashUrl(url: string): boolean {
   try {
     return new URL(url).hostname === "images.unsplash.com";
   } catch {
     return false;
+  }
+}
+
+function getGalleryLayout(count: number): GalleryCell[] {
+  switch (count) {
+    case 1:
+      return [{ colSpan: 4, rowSpan: 2 }];
+    case 2:
+      return [
+        { colSpan: 2, rowSpan: 2 },
+        { colSpan: 2, rowSpan: 2 },
+      ];
+    case 3:
+      return [
+        { colSpan: 2, rowSpan: 2 },
+        { colSpan: 2, rowSpan: 1 },
+        { colSpan: 2, rowSpan: 1 },
+      ];
+    case 4:
+      return [
+        { colSpan: 2, rowSpan: 1 },
+        { colSpan: 2, rowSpan: 1 },
+        { colSpan: 2, rowSpan: 1 },
+        { colSpan: 2, rowSpan: 1 },
+      ];
+    case 5:
+      return [
+        { colSpan: 2, rowSpan: 2 },
+        { colSpan: 1, rowSpan: 1 },
+        { colSpan: 1, rowSpan: 1 },
+        { colSpan: 1, rowSpan: 1 },
+        { colSpan: 1, rowSpan: 1 },
+      ];
+    default:
+      return Array.from({ length: count }, (_, index) => {
+        if (index === 0) return { colSpan: 2, rowSpan: 2 };
+        if (index % 5 === 0) return { colSpan: 2, rowSpan: 1 };
+        return { colSpan: 1, rowSpan: 1 };
+      });
   }
 }
 
@@ -74,25 +121,21 @@ export function HeroGallery({
   const imageMedia =
     media?.filter((item) => item.type !== "video" && item.url) ?? [];
 
-  const mainItem = imageMedia[0];
-  const mainSrc = mainItem?.url;
-  const mainAlt = mainItem?.alt_text ?? "Featured event decor";
-  const mainId = mainItem?.id;
-
-  const smallSources = imageMedia.slice(1, 5).map((item) => ({
-    src: item.thumbnail_url ?? item.url,
-    alt: item.alt_text ?? "Event decor gallery image",
-    id: item.id,
-  }));
+  const visibleMedia = imageMedia.slice(0, MAX_BANNER_PHOTOS);
+  const atPhotoLimit = imageMedia.length >= MAX_BANNER_PHOTOS;
+  const layout = getGalleryLayout(visibleMedia.length);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file || !onUpload) return;
+    if (files.length === 0 || !onUpload || atPhotoLimit) return;
+
+    const remaining = MAX_BANNER_PHOTOS - imageMedia.length;
+    const toUpload = files.slice(0, remaining);
 
     setUploadError(null);
     try {
-      await onUpload(file);
+      await onUpload(toUpload);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed.");
     }
@@ -123,22 +166,28 @@ export function HeroGallery({
             ref={inputRef}
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             onChange={handleFileChange}
           />
           <button
             type="button"
-            disabled={uploading}
+            disabled={uploading || atPhotoLimit}
             onClick={() => inputRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-lg border border-mk-border bg-white px-3 py-2 font-sans text-sm font-medium text-mk-ink hover:bg-[#FAF7F0] disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-mk-border bg-white px-3 py-2 font-sans text-sm font-medium text-mk-ink hover:bg-[#FAF7F0] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Upload className="h-4 w-4" />
             )}
-            Upload photo
+            Upload photos
           </button>
+          {atPhotoLimit && (
+            <p className="font-sans text-sm text-mk-muted">
+              Gallery limit reached ({MAX_BANNER_PHOTOS} photos).
+            </p>
+          )}
           {uploadError && (
             <p className="text-sm text-red-600">{uploadError}</p>
           )}
@@ -146,34 +195,41 @@ export function HeroGallery({
       )}
 
       <div className="overflow-hidden rounded-2xl border border-mk-border bg-[#EDE8DE] p-1.5 shadow-[0_4px_24px_rgba(28,26,22,0.06)] md:p-2">
-        {mainSrc ? (
-          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4 md:grid-rows-2 md:gap-2">
-            <div className="relative col-span-2 row-span-2 min-h-[240px] overflow-hidden rounded-lg md:min-h-[400px]">
-              <GalleryImage
-                src={mainSrc}
-                alt={mainAlt}
-                priority
-                sizes="(max-width: 768px) 100vw, 720px"
-              />
-              {renderRemoveButton(mainId)}
-            </div>
+        {visibleMedia.length > 0 ? (
+          <div
+            className={`grid grid-cols-2 grid-rows-2 gap-1.5 md:grid-cols-4 md:gap-2 ${BANNER_GRID_HEIGHT}`}
+          >
+            {visibleMedia.map((item, index) => {
+              const cell = layout[index] ?? { colSpan: 1, rowSpan: 1 };
+              const src = item.thumbnail_url ?? item.url;
+              const alt = item.alt_text ?? "Gallery image";
 
-            {smallSources.map((item, index) => (
-              <div
-                key={`${item.id}-${index}`}
-                className="relative min-h-[100px] overflow-hidden rounded-lg md:min-h-0"
-              >
-                <GalleryImage
-                  src={item.src}
-                  alt={item.alt}
-                  sizes="(max-width: 768px) 50vw, 180px"
-                />
-                {renderRemoveButton(item.id)}
-              </div>
-            ))}
+              return (
+                <div
+                  key={item.id}
+                  className="relative min-h-0 overflow-hidden rounded-lg"
+                  style={{
+                    gridColumn: `span ${cell.colSpan}`,
+                    gridRow: `span ${cell.rowSpan}`,
+                  }}
+                >
+                  <GalleryImage
+                    src={src}
+                    alt={alt}
+                    priority={index === 0}
+                    sizes={
+                      cell.colSpan >= 2
+                        ? "(max-width: 768px) 100vw, 720px"
+                        : "(max-width: 768px) 50vw, 180px"
+                    }
+                  />
+                  {renderRemoveButton(item.id)}
+                </div>
+              );
+            })}
           </div>
         ) : (
-          <div className="flex min-h-[240px] items-center justify-center rounded-lg border border-dashed border-mk-border bg-[#FAF7F0] md:min-h-[320px]">
+          <div className="flex h-[280px] items-center justify-center rounded-lg border border-dashed border-mk-border bg-[#FAF7F0] md:h-[400px]">
             <p className="px-4 text-center font-sans text-sm text-mk-muted">
               {editable
                 ? "Upload photos to build your hero gallery."

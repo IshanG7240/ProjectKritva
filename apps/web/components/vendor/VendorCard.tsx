@@ -9,19 +9,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { formatPackagePriceLabel } from "@/lib/vendor-profile";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-/** Format paisa integer to a human-readable ₹ string (e.g. 15000000 → ₹1,50,000). */
-function formatPaisa(paisa: number): string {
-  const rupees = Math.round(paisa / 100);
-  return rupees.toLocaleString("en-IN");
-}
-
-/** Format unit enum to readable label. */
-function formatUnit(unit: string): string {
-  return unit.replace(/_/g, " ");
-}
 
 /** Capitalise first letter of a string. */
 function cap(s: string): string {
@@ -61,6 +51,14 @@ function pickSampleCoverImage(id: string, category: string[]): string {
   return SAMPLE_COVER_IMAGES[hash]!;
 }
 
+function isUnsplashUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === "images.unsplash.com";
+  } catch {
+    return false;
+  }
+}
+
 function resolveCoverImage(
   id: string,
   category: string[],
@@ -83,8 +81,11 @@ export interface VendorCardProps {
   price_min: number | null;
   price_max: number | null;
   unit: string | null;
+  units_mixed?: boolean;
   /** Cover image URL. Falls back to a pattern placeholder when absent. */
   cover_image?: string | null;
+  /** Vendor profile photo shown as avatar on the card. */
+  profile_photo_url?: string | null;
 }
 
 // ── skeleton ──────────────────────────────────────────────────────────────────
@@ -144,10 +145,19 @@ export function VendorCard({
   price_min,
   price_max,
   unit,
+  units_mixed = false,
   cover_image,
+  profile_photo_url,
 }: VendorCardProps) {
   const rating = avg_rating != null ? Number(avg_rating).toFixed(1) : null;
   const imageSrc = resolveCoverImage(id, category, cover_image);
+  const avatarSrc = profile_photo_url?.trim() || null;
+  const priceLabel = formatPackagePriceLabel({
+    price_min,
+    price_max,
+    unit,
+    units_mixed,
+  });
 
   // Format city label — "delhi-ncr" → "Delhi NCR"
   const cityLabel = city_id
@@ -169,6 +179,29 @@ export function VendorCard({
           className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           sizes="320px"
         />
+
+        {avatarSrc && (
+          <div className="absolute bottom-3 left-3 h-14 w-14 overflow-hidden rounded-full border-[3px] border-white bg-[#EDE8DE] shadow-md">
+            <div className="relative h-full w-full">
+              {isUnsplashUrl(avatarSrc) ? (
+                <Image
+                  src={avatarSrc}
+                  alt={`${business_name} profile`}
+                  fill
+                  className="object-cover"
+                  sizes="56px"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarSrc}
+                  alt={`${business_name} profile`}
+                  className="h-full w-full object-cover"
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Verified badge — top right */}
         <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 shadow-sm backdrop-blur-sm">
@@ -250,13 +283,9 @@ export function VendorCard({
         )}
 
         {/* Price */}
-        {price_min != null && (
+        {priceLabel && (
           <p className="mt-3 font-sans text-[13px] text-[#1C1A16]">
-            Starting from{" "}
-            <span className="font-semibold">₹{formatPaisa(price_min)}</span>
-            {unit && (
-              <span className="text-[#7A7060]"> / {formatUnit(unit)}</span>
-            )}
+            {priceLabel}
           </p>
         )}
 

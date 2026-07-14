@@ -65,9 +65,12 @@ export function customerFirstName(fullName: string): string {
   return trimmed.split(/\s+/)[0] ?? trimmed;
 }
 
-export function formatServiceSummary(
+export function formatPackageSummary(
   details: Array<{ name: string }> | null | undefined,
 ): string {
   if (!details?.length) return "—";
   return details.map((d) => d.name).join(", ");
 }
+
+/** @deprecated Use formatPackageSummary */
+export const formatServiceSummary = formatPackageSummary;

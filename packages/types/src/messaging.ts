@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { messageTypeSchema } from "./enums.js";
+import { messageTypeSchema } from "./enums";
 
 // ==========================================
 // 1. Message Sending Schema

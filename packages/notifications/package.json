@@ -19,7 +19,8 @@
     "clean": "rm -rf .turbo node_modules"
   },
   "dependencies": {
-    "@kritva/types": "workspace:*"
+    "@kritva/types": "workspace:*",
+    "resend": "^6.17.2"
   },
   "devDependencies": {
     "@kritva/eslint-config": "workspace:*",

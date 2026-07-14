@@ -1,6 +1,8 @@
 {
   "extends": "@kritva/tsconfig/base.json",
   "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "outDir": "./dist",
     "rootDir": "./src",
     "noEmit": true

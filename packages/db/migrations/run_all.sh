@@ -24,6 +24,8 @@ MIGRATIONS=(
   "012_nullable_user_phone.sql"
   "013_vendor_profile_media.sql"
   "014_storage_policies.sql"
+  "015_vendor_draft_status.sql"
+  "016_vendor_packages.sql"
 )
 
 echo "Running ${#MIGRATIONS[@]} migrations..."

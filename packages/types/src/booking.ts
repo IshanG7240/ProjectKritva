@@ -3,25 +3,39 @@ import {
   bookingStatusSchema,
   milestoneNameSchema,
   milestonePaymentStatusSchema,
-} from "./enums.js";
-import { ulidSchema, paisaSchema } from "./api.js";
+  packageUnitSchema,
+} from "./enums";
+import { ulidSchema, paisaSchema } from "./api";
 
 // ==========================================
-// 1. Service Detail Schema (for nested JSON)
+// 1. Package Detail Schemas (for nested JSON)
 // ==========================================
-export const bookingServiceDetailSchema = z.object({
-  service_id: ulidSchema,
-  name: z
-    .string()
-    .min(1, "Service name is required")
-    .max(200, "Service name cannot exceed 200 characters"),
+
+/** Client selection: package ID + quantity only. Server supplies the snapshot. */
+export const bookingPackageSelectionSchema = z.object({
+  package_id: ulidSchema,
   quantity: z
     .number()
     .int("Quantity must be an integer")
     .positive("Quantity must be at least 1"),
+});
+export type BookingPackageSelection = z.infer<typeof bookingPackageSelectionSchema>;
+
+/** Stored/returned snapshot — canonical fields from the package at inquiry time. */
+export const bookingPackageDetailSchema = z.object({
+  package_id: ulidSchema,
+  name: z
+    .string()
+    .min(1, "Package name is required")
+    .max(200, "Package name cannot exceed 200 characters"),
+  quantity: z
+    .number()
+    .int("Quantity must be an integer")
+    .positive("Quantity must be at least 1"),
+  unit: packageUnitSchema,
   price_at_booking: paisaSchema,
 });
-export type BookingServiceDetail = z.infer<typeof bookingServiceDetailSchema>;
+export type BookingPackageDetail = z.infer<typeof bookingPackageDetailSchema>;
 
 // ==========================================
 // 2. Booking State Transition Schemas
@@ -29,9 +43,9 @@ export type BookingServiceDetail = z.infer<typeof bookingServiceDetailSchema>;
 export const createBookingInquirySchema = z.object({
   event_id: ulidSchema.optional().nullable(),
   vendor_id: ulidSchema,
-  service_details: z
-    .array(bookingServiceDetailSchema)
-    .min(1, "At least one service detail is required"),
+  package_details: z
+    .array(bookingPackageSelectionSchema)
+    .min(1, "At least one package selection is required"),
   total_amount: paisaSchema,
   event_date: z
     .string()
@@ -172,7 +186,7 @@ export const bookingListItemSchema = z.object({
   total_amount: paisaSchema,
   notes: z.string().nullable(),
   status: bookingStatusSchema,
-  service_details: z.array(bookingServiceDetailSchema),
+  package_details: z.array(bookingPackageDetailSchema),
   counter_amount: paisaSchema.nullable(),
   counter_message: z.string().nullable(),
   decline_reason: z.string().nullable(),
@@ -225,7 +239,7 @@ export const bookingDetailSchema = z.object({
   notes: z.string().nullable(),
   city_id: z.string(),
   status: bookingStatusSchema,
-  service_details: z.array(bookingServiceDetailSchema),
+  package_details: z.array(bookingPackageDetailSchema),
   counter_amount: paisaSchema.nullable(),
   counter_message: z.string().nullable(),
   decline_reason: z.string().nullable(),

@@ -73,6 +73,7 @@ export type EventType = z.infer<typeof eventTypeSchema>;
 // 8. Verification Statuses
 // ==========================================
 export const VERIFICATION_STATUSES = [
+  "draft",
   "pending_review",
   "approved",
   "rejected",
@@ -116,11 +117,29 @@ export const messageTypeSchema = z.enum(MESSAGE_TYPES);
 export type MessageType = z.infer<typeof messageTypeSchema>;
 
 // ==========================================
-// 13. Service Units
+// 13. Package Units
 // ==========================================
-export const SERVICE_UNITS = ["per_event", "per_plate", "per_hour", "per_day", "fixed"] as const;
-export const serviceUnitSchema = z.enum(SERVICE_UNITS);
-export type ServiceUnit = z.infer<typeof serviceUnitSchema>;
+export const PACKAGE_UNITS = [
+  "flat",
+  "per_plate",
+  "per_person",
+  "per_hour",
+  "per_day",
+  "per_item",
+] as const;
+export const packageUnitSchema = z.enum(PACKAGE_UNITS);
+export type PackageUnit = z.infer<typeof packageUnitSchema>;
+
+/** Units that support a minimum quantity (catering-style). */
+export const PACKAGE_UNITS_WITH_MIN_QUANTITY = ["per_plate", "per_person"] as const;
+export type PackageUnitWithMinQuantity =
+  (typeof PACKAGE_UNITS_WITH_MIN_QUANTITY)[number];
+
+export function packageUnitAllowsMinQuantity(
+  unit: PackageUnit,
+): unit is PackageUnitWithMinQuantity {
+  return (PACKAGE_UNITS_WITH_MIN_QUANTITY as readonly string[]).includes(unit);
+}
 
 // ==========================================
 // Additional Check Constraints from Migrations

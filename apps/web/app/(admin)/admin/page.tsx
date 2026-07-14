@@ -1,62 +1,16 @@
 "use client";
 
-/**
- * Admin Panel — protected route for role: admin | superadmin.
- * Displays vendors pending verification with Approve / Reject actions.
- */
-
+import Link from "next/link";
 import { useRequireAuth } from "@/hooks/use-require-auth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { useQuery } from "@tanstack/react-query";
 import { AppNav } from "@/components/layout/app-nav";
-
-// Shape of a vendor returned by GET /v1/admin/vendors/pending
-interface PendingVendor {
-  id: string;
-  user_id: string;
-  business_name: string;
-  slug: string;
-  category: string[];
-  city_id: string;
-  description: string | null;
-  verification_status: string;
-  verification_notes: string | null;
-  created_at: string;
-}
-
-/** Fetches all vendors in pending_review state. */
-async function fetchPendingVendors(): Promise<PendingVendor[]> {
-  const res = await apiClient.get<{ vendors: PendingVendor[] }>(
-    "/v1/admin/vendors/pending",
-  );
-  if (res.error) throw new Error(res.error.message);
-  return res.data?.vendors ?? [];
-}
-
-/** Payload sent to PATCH /v1/admin/vendors/:id/verify. */
-interface VerifyPayload {
-  id: string;
-  verification_status: "approved" | "rejected";
-  verification_notes?: string;
-}
-
-/** Submits a verification decision for a single vendor. */
-async function verifyVendor({
-  id,
-  verification_status,
-  verification_notes,
-}: VerifyPayload): Promise<void> {
-  const res = await apiClient.patch(`/v1/admin/vendors/${id}/verify`, {
-    verification_status,
-    verification_notes,
-  });
-  if (res.error) throw new Error(res.error.message);
-}
+import {
+  fetchPendingVendors,
+  formatSubmittedAt,
+} from "@/lib/admin-vendors";
 
 export default function AdminPage() {
-  // Permit only admin — redirect everyone else.
   const { user, loading } = useRequireAuth("admin");
-  const queryClient = useQueryClient();
 
   const {
     data: vendors,
@@ -66,17 +20,7 @@ export default function AdminPage() {
   } = useQuery({
     queryKey: ["admin", "vendors", "pending"],
     queryFn: fetchPendingVendors,
-    // Only run once auth resolves.
     enabled: !loading && !!user,
-  });
-
-  // Single mutation handles both approve and reject; caller supplies the status.
-  const verifyMutation = useMutation({
-    mutationFn: verifyVendor,
-    onSuccess: () => {
-      // Refresh the queue so acted-on vendors disappear.
-      queryClient.invalidateQueries({ queryKey: ["admin", "vendors", "pending"] });
-    },
   });
 
   if (loading || !user) return null;
@@ -85,70 +29,76 @@ export default function AdminPage() {
     <div className="min-h-screen bg-mk-bg">
       <AppNav />
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 space-y-8">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Admin — Vendor Verification Queue
-        </h1>
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+        <div>
+          <h1 className="font-sans text-xl font-semibold text-mk-ink">
+            Vendor verification queue
+          </h1>
+          <p className="mt-1 font-sans text-sm text-mk-muted">
+            Review submitted profiles before they go live on the marketplace.
+          </p>
+        </div>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading pending vendors…</p>
+          <p className="font-sans text-sm text-mk-muted">
+            Loading pending vendors…
+          </p>
         ) : isError ? (
-          <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded">
-            Error: {error instanceof Error ? error.message : "Unknown error"}
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 font-sans text-sm text-red-700">
+            {error instanceof Error ? error.message : "Failed to load queue"}
+          </p>
+        ) : vendors && vendors.length === 0 ? (
+          <p className="font-sans text-sm text-mk-muted">
+            No vendors pending review.
           </p>
         ) : (
-          <>
-            {vendors && vendors.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No vendors pending review.</p>
-            ) : (
-              <ul className="divide-y divide-border border border-border rounded bg-card p-4 space-y-3">
-                {vendors?.map((vendor) => (
-                  <li key={vendor.id} className="pt-3 first:pt-0 flex items-center justify-between flex-wrap gap-2">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold">{vendor.business_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        City: {vendor.city_id} | Categories: {vendor.category.join(", ") || "—"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Submitted: {new Date(vendor.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:opacity-90 disabled:opacity-50"
-                        onClick={() =>
-                          verifyMutation.mutate({
-                            id: vendor.id,
-                            verification_status: "approved",
-                          })
-                        }
-                        disabled={verifyMutation.isPending}
-                      >
-                        Approve Vendor
-                      </button>
-                      <button
-                        className="px-3 py-1.5 bg-destructive text-destructive-foreground text-xs rounded hover:opacity-90 disabled:opacity-50"
-                        onClick={() =>
-                          verifyMutation.mutate({
-                            id: vendor.id,
-                            verification_status: "rejected",
-                          })
-                        }
-                        disabled={verifyMutation.isPending}
-                      >
-                        Reject Vendor
-                      </button>
-                    </div>
-                    {verifyMutation.isError && (
-                      <p className="w-full text-xs text-destructive mt-1">
-                        Error: {verifyMutation.error instanceof Error ? verifyMutation.error.message : "Action failed"}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+          <div className="overflow-hidden rounded-xl border border-mk-border bg-white">
+            <div className="hidden gap-4 border-b border-mk-border bg-[#FDFBF7] px-4 py-3 text-xs font-medium uppercase tracking-wide text-mk-muted sm:grid sm:grid-cols-[1.4fr_0.9fr_0.5fr_0.5fr_0.8fr_0.5fr]">
+              <span>Business</span>
+              <span>Category</span>
+              <span>Packages</span>
+              <span>Portfolio</span>
+              <span>Submitted</span>
+              <span />
+            </div>
+            <ul className="divide-y divide-mk-border">
+              {vendors?.map((vendor) => (
+                <li
+                  key={vendor.id}
+                  className="flex flex-col gap-3 px-4 py-4 sm:grid sm:grid-cols-[1.4fr_0.9fr_0.5fr_0.5fr_0.8fr_0.5fr] sm:items-center sm:gap-4"
+                >
+                  <div>
+                    <p className="font-sans text-sm font-semibold text-mk-ink">
+                      {vendor.business_name}
+                    </p>
+                    <p className="mt-0.5 font-sans text-xs text-mk-muted">
+                      {vendor.city_id}
+                    </p>
+                  </div>
+                  <p className="font-sans text-sm text-mk-ink">
+                    {vendor.category.join(", ") || "—"}
+                  </p>
+                  <p className="font-sans text-sm text-mk-ink">
+                    {vendor.package_count}
+                  </p>
+                  <p className="font-sans text-sm text-mk-ink">
+                    {vendor.portfolio_media_count}
+                  </p>
+                  <p className="font-sans text-sm text-mk-muted">
+                    {formatSubmittedAt(vendor.submitted_at)}
+                  </p>
+                  <div className="sm:text-right">
+                    <Link
+                      href={`/admin/vendors/${vendor.id}`}
+                      className="inline-flex h-8 items-center rounded-md border border-mk-border bg-white px-3 font-sans text-sm font-medium text-mk-navy hover:bg-[#FDFBF7]"
+                    >
+                      Review
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </main>
     </div>

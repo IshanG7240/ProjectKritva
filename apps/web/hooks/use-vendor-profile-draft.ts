@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
-import type { VendorMedia, VendorProfile, VendorService } from "@/lib/vendor-profile";
+import type {
+  VendorMedia,
+  VendorPackage,
+  VendorProfile,
+} from "@/lib/vendor-profile";
+import { packageUnitAllowsMinQuantity, type PackageUnit } from "@kritva/types/enums";
 
 export type VendorProfileDraft = VendorProfile;
 
+/** Versioned key so stale service-shaped drafts cannot corrupt package saves. */
 function draftStorageKey(vendorId: string) {
-  return `kritva-vendor-draft:${vendorId}`;
+  return `kritva-vendor-draft-v2:${vendorId}`;
 }
 
-function createLocalId(prefix: "service" | "media") {
+function createLocalId(prefix: "package" | "media") {
   return `local-${prefix}-${crypto.randomUUID()}`;
 }
 
@@ -22,7 +28,6 @@ function profilesEqual(a: VendorProfileDraft, b: VendorProfileDraft): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Fields managed server-side — always taken from the latest API response. */
 function applyServerFields(
   draft: VendorProfileDraft,
   server: VendorProfile,
@@ -35,13 +40,32 @@ function applyServerFields(
     booking_count: server.booking_count,
     response_time_hours: server.response_time_hours,
     verification_status: server.verification_status,
+    verification_notes: server.verification_notes ?? null,
   };
+}
+
+function isPackageShapedDraft(value: unknown): value is VendorProfileDraft {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return Array.isArray(record.packages) && !("services" in record);
 }
 
 async function fetchMyVendorProfile(): Promise<VendorProfile> {
   const res = await apiClient.get<{ vendor: VendorProfile }>("/v1/vendors/me");
   if (res.error) throw new Error(res.error.message);
   return res.data!.vendor;
+}
+
+function packagesEqual(a: VendorPackage, b: VendorPackage): boolean {
+  return (
+    a.name === b.name &&
+    (a.description ?? "") === (b.description ?? "") &&
+    a.price === b.price &&
+    a.unit === b.unit &&
+    (a.min_quantity ?? null) === (b.min_quantity ?? null) &&
+    JSON.stringify(a.inclusions ?? []) === JSON.stringify(b.inclusions ?? []) &&
+    (a.is_active !== false) === (b.is_active !== false)
+  );
 }
 
 export function useVendorProfileDraft() {
@@ -60,15 +84,22 @@ export function useVendorProfileDraft() {
       const baseline = cloneProfile(profile);
       setSaved(baseline);
 
+      // Clear legacy v1 service drafts
+      localStorage.removeItem(`kritva-vendor-draft:${profile.id}`);
+
       const stored = localStorage.getItem(draftStorageKey(profile.id));
       if (stored) {
         try {
-          const parsed = JSON.parse(stored) as VendorProfileDraft;
-          if (parsed.id === profile.id) {
+          const parsed = JSON.parse(stored) as unknown;
+          if (
+            isPackageShapedDraft(parsed) &&
+            parsed.id === profile.id
+          ) {
             setDraft(applyServerFields(parsed, profile));
             setLoading(false);
             return;
           }
+          localStorage.removeItem(draftStorageKey(profile.id));
         } catch {
           localStorage.removeItem(draftStorageKey(profile.id));
         }
@@ -122,41 +153,72 @@ export function useVendorProfileDraft() {
     [updateDraft],
   );
 
-  const updateService = useCallback(
-    (serviceId: string, patch: Partial<VendorService>) => {
+  const updatePackage = useCallback(
+    (packageId: string, patch: Partial<VendorPackage>) => {
       updateDraft((current) => ({
         ...current,
-        services: current.services.map((service) =>
-          service.id === serviceId ? { ...service, ...patch } : service,
-        ),
+        packages: current.packages.map((pkg) => {
+          if (pkg.id !== packageId) return pkg;
+          const next = { ...pkg, ...patch };
+          if (patch.unit !== undefined && !packageUnitAllowsMinQuantity(patch.unit)) {
+            next.min_quantity = null;
+          }
+          return next;
+        }),
       }));
     },
     [updateDraft],
   );
 
-  const addService = useCallback(() => {
+  const addPackage = useCallback(() => {
     updateDraft((current) => ({
       ...current,
-      services: [
-        ...current.services,
+      packages: [
+        ...current.packages,
         {
-          id: createLocalId("service"),
-          name: "New service",
+          id: createLocalId("package"),
+          name: "New package",
           description: "",
-          price_min: 0,
-          price_max: 0,
-          unit: "per_event",
+          price: 0,
+          unit: "flat" as PackageUnit,
+          min_quantity: null,
+          inclusions: [],
           is_active: true,
         },
       ],
     }));
   }, [updateDraft]);
 
-  const removeService = useCallback(
-    (serviceId: string) => {
+  const deactivatePackage = useCallback(
+    (packageId: string) => {
       updateDraft((current) => ({
         ...current,
-        services: current.services.filter((service) => service.id !== serviceId),
+        packages: current.packages.map((pkg) =>
+          pkg.id === packageId ? { ...pkg, is_active: false } : pkg,
+        ),
+      }));
+    },
+    [updateDraft],
+  );
+
+  const reactivatePackage = useCallback(
+    (packageId: string) => {
+      updateDraft((current) => ({
+        ...current,
+        packages: current.packages.map((pkg) =>
+          pkg.id === packageId ? { ...pkg, is_active: true } : pkg,
+        ),
+      }));
+    },
+    [updateDraft],
+  );
+
+  const removeLocalPackage = useCallback(
+    (packageId: string) => {
+      if (!packageId.startsWith("local-")) return;
+      updateDraft((current) => ({
+        ...current,
+        packages: current.packages.filter((pkg) => pkg.id !== packageId),
       }));
     },
     [updateDraft],
@@ -247,63 +309,84 @@ export function useVendorProfileDraft() {
         if (res.error) throw new Error(res.error.message);
       }
 
-      const savedServices = saved.services.filter((s) => s.is_active !== false);
-      const draftServices = draft.services.filter((s) => s.is_active !== false);
-      const draftServiceIds = new Set(draftServices.map((s) => s.id));
+      const draftById = new Map(draft.packages.map((pkg) => [pkg.id, pkg]));
 
-      for (const service of savedServices) {
-        if (!draftServiceIds.has(service.id)) {
+      for (const savedPkg of saved.packages) {
+        const draftPkg = draftById.get(savedPkg.id);
+        if (!draftPkg) {
+          if (savedPkg.is_active !== false) {
+            const res = await apiClient.delete(
+              `/v1/vendors/me/packages/${savedPkg.id}`,
+            );
+            if (res.error) throw new Error(res.error.message);
+          }
+          continue;
+        }
+
+        if (savedPkg.is_active !== false && draftPkg.is_active === false) {
           const res = await apiClient.delete(
-            `/v1/vendors/me/services/${service.id}`,
+            `/v1/vendors/me/packages/${savedPkg.id}`,
+          );
+          if (res.error) throw new Error(res.error.message);
+          continue;
+        }
+
+        if (savedPkg.is_active === false && draftPkg.is_active !== false) {
+          const res = await apiClient.patch(
+            `/v1/vendors/me/packages/${savedPkg.id}`,
+            {
+              name: draftPkg.name,
+              description: draftPkg.description ?? "",
+              price: draftPkg.price,
+              unit: draftPkg.unit,
+              min_quantity: draftPkg.min_quantity,
+              inclusions: draftPkg.inclusions ?? [],
+              is_active: true,
+            },
+          );
+          if (res.error) throw new Error(res.error.message);
+          continue;
+        }
+
+        if (!packagesEqual(savedPkg, draftPkg)) {
+          const res = await apiClient.patch(
+            `/v1/vendors/me/packages/${savedPkg.id}`,
+            {
+              name: draftPkg.name,
+              description: draftPkg.description ?? "",
+              price: draftPkg.price,
+              unit: draftPkg.unit,
+              min_quantity: packageUnitAllowsMinQuantity(draftPkg.unit)
+                ? draftPkg.min_quantity
+                : null,
+              inclusions: draftPkg.inclusions ?? [],
+              is_active: draftPkg.is_active !== false,
+            },
           );
           if (res.error) throw new Error(res.error.message);
         }
       }
 
-      const idMap = new Map<string, string>();
+      for (const draftPkg of draft.packages) {
+        if (!draftPkg.id.startsWith("local-")) continue;
+        if (draftPkg.is_active === false) continue;
 
-      for (const service of draftServices) {
-        const savedService = savedServices.find((s) => s.id === service.id);
-
-        if (service.id.startsWith("local-")) {
-          const res = await apiClient.post<{ service: { id: string } }>(
-            "/v1/vendors/me/services",
-            {
-              name: service.name,
-              description: service.description ?? "",
-              price_min: service.price_min,
-              price_max: service.price_max,
-              unit: service.unit,
-              is_active: true,
-            },
-          );
-          if (res.error || !res.data) {
-            throw new Error(res.error?.message ?? "Failed to create service.");
-          }
-          idMap.set(service.id, res.data.service.id);
-          continue;
-        }
-
-        if (
-          !savedService ||
-          savedService.name !== service.name ||
-          (savedService.description ?? "") !== (service.description ?? "") ||
-          savedService.price_min !== service.price_min ||
-          savedService.price_max !== service.price_max ||
-          savedService.unit !== service.unit
-        ) {
-          const res = await apiClient.patch(
-            `/v1/vendors/me/services/${service.id}`,
-            {
-              name: service.name,
-              description: service.description ?? "",
-              price_min: service.price_min,
-              price_max: service.price_max,
-              unit: service.unit,
-              is_active: true,
-            },
-          );
-          if (res.error) throw new Error(res.error.message);
+        const res = await apiClient.post<{ package: { id: string } }>(
+          "/v1/vendors/me/packages",
+          {
+            name: draftPkg.name,
+            description: draftPkg.description ?? "",
+            price: draftPkg.price,
+            unit: draftPkg.unit,
+            min_quantity: packageUnitAllowsMinQuantity(draftPkg.unit)
+              ? draftPkg.min_quantity
+              : null,
+            inclusions: draftPkg.inclusions ?? [],
+            is_active: true,
+          },
+        );
+        if (res.error || !res.data) {
+          throw new Error(res.error?.message ?? "Failed to create package.");
         }
       }
 
@@ -343,7 +426,6 @@ export function useVendorProfileDraft() {
           if (res.error || !res.data) {
             throw new Error(res.error?.message ?? "Failed to create media.");
           }
-          idMap.set(item.id, res.data.media.id);
         }
       }
 
@@ -372,9 +454,11 @@ export function useVendorProfileDraft() {
     saveAll,
     discardChanges,
     updateProfile,
-    updateService,
-    addService,
-    removeService,
+    updatePackage,
+    addPackage,
+    deactivatePackage,
+    reactivatePackage,
+    removeLocalPackage,
     addMedia,
     removeMedia,
     updateMediaAlt,

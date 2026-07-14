@@ -11,7 +11,7 @@ export interface KritvaUser {
   id: string;
   email: string;
   name: string;
-  role: "customer" | "vendor" | "admin";
+  role: "customer" | "vendor" | "admin" | "superadmin";
   onboarding_complete: boolean;
 }
 
@@ -33,7 +33,8 @@ export function useRequireAuth(
     | "customer"
     | "vendor"
     | "admin"
-    | Array<"customer" | "vendor" | "admin">,
+    | "superadmin"
+    | Array<"customer" | "vendor" | "admin" | "superadmin">,
 ): AuthState {
   const router = useRouter();
   const [state, setState] = useState<AuthState>({
@@ -83,13 +84,21 @@ export function useRequireAuth(
           : [requiredRole]
         : null;
 
-      if (allowed && !allowed.includes(kritvaUser.role)) {
+      if (allowed) {
+        const hasAccess =
+          allowed.includes(kritvaUser.role) ||
+          (kritvaUser.role === "superadmin" && allowed.includes("admin"));
+
+        if (!hasAccess) {
         // Redirect to the user's correct workspace.
         let correct = "/dashboard";
         if (kritvaUser.role === "vendor") correct = "/vendor";
-        if (kritvaUser.role === "admin") correct = "/admin";
+        if (kritvaUser.role === "admin" || kritvaUser.role === "superadmin") {
+          correct = "/admin";
+        }
         router.replace(correct);
         return;
+        }
       }
 
       setState({ user: kritvaUser, supabaseUser: session.user, loading: false });

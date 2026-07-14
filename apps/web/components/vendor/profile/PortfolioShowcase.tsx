@@ -2,10 +2,12 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Loader2, Play, Trash2, Upload } from "lucide-react";
 
 import type { VendorMediaItem } from "./HeroGallery";
-import { InlineEditField } from "@/components/vendor/edit/InlineEditField";
+
+const PREVIEW_LIMIT = 6;
 
 function isUnsplashUrl(url: string): boolean {
   try {
@@ -17,42 +19,46 @@ function isUnsplashUrl(url: string): boolean {
 
 interface PortfolioShowcaseProps {
   media?: VendorMediaItem[];
+  vendorSlug?: string;
   editable?: boolean;
   uploading?: boolean;
-  onUpload?: (file: File) => Promise<void>;
+  onUpload?: (files: File[]) => Promise<void>;
   onRemove?: (mediaId: string) => void;
-  onAltChange?: (mediaId: string, alt: string) => void;
 }
 
 export function PortfolioShowcase({
   media,
+  vendorSlug,
   editable = false,
   uploading = false,
   onUpload,
   onRemove,
-  onAltChange,
 }: PortfolioShowcaseProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const items =
+  const allItems =
     media && media.length > 0
-      ? media.slice(0, 6).map((item) => ({
+      ? media.map((item) => ({
           id: item.id,
           src: item.url,
-          label: item.alt_text ?? "Portfolio item",
+          alt: item.alt_text ?? "Portfolio image",
           isVideo: item.type === "video",
         }))
       : [];
 
+  const items = editable ? allItems : allItems.slice(0, PREVIEW_LIMIT);
+  const hasMore = allItems.length > PREVIEW_LIMIT;
+  const showViewAll = !editable && vendorSlug && allItems.length > 0;
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file || !onUpload) return;
+    if (files.length === 0 || !onUpload) return;
 
     setUploadError(null);
     try {
-      await onUpload(file);
+      await onUpload(files);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed.");
     }
@@ -64,30 +70,41 @@ export function PortfolioShowcase({
         <h2 className="font-sans text-lg font-semibold text-mk-ink">
           Portfolio Showcase
         </h2>
-        {editable && (
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*,video/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              disabled={uploading}
-              onClick={() => inputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-lg border border-mk-border bg-white px-3 py-2 font-sans text-sm font-medium text-mk-ink hover:bg-[#FAF7F0] disabled:opacity-50"
+        <div className="flex flex-wrap items-center gap-3">
+          {showViewAll && (
+            <Link
+              href={`/vendors/${vendorSlug}/photos`}
+              className="font-sans text-sm font-medium text-mk-navy transition-colors hover:text-mk-ink"
             >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-              Upload
-            </button>
-          </div>
-        )}
+              View all{hasMore ? ` (${allItems.length})` : ""}
+            </Link>
+          )}
+          {editable && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => inputRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-lg border border-mk-border bg-white px-3 py-2 font-sans text-sm font-medium text-mk-ink hover:bg-[#FAF7F0] disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                Upload
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {uploadError && (
@@ -112,7 +129,7 @@ export function PortfolioShowcase({
               {isUnsplashUrl(item.src) ? (
                 <Image
                   src={item.src}
-                  alt={item.label}
+                  alt={item.alt}
                   fill
                   className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                   sizes="(max-width: 640px) 100vw, 33vw"
@@ -121,35 +138,17 @@ export function PortfolioShowcase({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={item.src}
-                  alt={item.label}
+                  alt={item.alt}
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                 />
               )}
 
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
               {item.isVideo && (
-                <div className="absolute inset-0 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-md backdrop-blur-sm transition-transform group-hover:scale-105">
                     <Play className="ml-0.5 h-5 w-5 fill-mk-ink text-mk-ink" />
                   </span>
                 </div>
-              )}
-
-              {editable && onAltChange ? (
-                <div className="absolute right-3 bottom-3 left-3">
-                  <InlineEditField
-                    value={item.label === "Portfolio item" ? "" : item.label}
-                    onChange={(alt) => onAltChange(item.id, alt || "Portfolio item")}
-                    placeholder="Add caption"
-                    className="pointer-events-auto font-sans text-xs font-medium text-white"
-                    inputClassName="text-xs text-mk-ink"
-                  />
-                </div>
-              ) : (
-                <p className="absolute right-3 bottom-3 left-3 font-sans text-xs font-medium text-white">
-                  {item.label}
-                </p>
               )}
 
               {editable && onRemove && (

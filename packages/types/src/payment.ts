@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ulidSchema, paisaSchema } from "./api.js";
+import { ulidSchema, paisaSchema } from "./api";
 
 // ==========================================
 // 1. Payment Action Schemas
@@ -18,6 +18,19 @@ export const releasePaymentSchema = z.object({
   booking_id: ulidSchema,
 });
 export type ReleasePaymentInput = z.infer<typeof releasePaymentSchema>;
+
+export const createOrderSchema = z.object({
+  booking_id: ulidSchema,
+});
+export type CreateOrderInput = z.infer<typeof createOrderSchema>;
+
+export const verifyPaymentSchema = z.object({
+  booking_id: ulidSchema,
+  razorpay_payment_id: z.string().min(1, "razorpay_payment_id is required"),
+  razorpay_order_id: z.string().min(1, "razorpay_order_id is required"),
+  razorpay_signature: z.string().min(1, "razorpay_signature is required"),
+});
+export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;
 
 // ==========================================
 // 2. Vendor Bank Account linking Schemas

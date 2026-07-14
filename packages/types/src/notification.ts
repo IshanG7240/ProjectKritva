@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { devicePlatformSchema } from "./enums.js";
-
+import { devicePlatformSchema } from "./enums";
 // ==========================================
 // 1. Notification Preferences Schema
 // ==========================================

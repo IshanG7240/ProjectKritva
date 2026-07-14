@@ -20,8 +20,9 @@ import {
   bookingMilestones,
   users,
   vendors,
-  vendorServices,
+  vendorPackages,
 } from "@kritva/db";
+import type { BookingPackageDetail, PackageUnit } from "@kritva/types";
 import { dispatch as dispatchNotification } from "@kritva/notifications/dispatcher";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
 
@@ -37,7 +38,7 @@ const bookingListFields = {
   total_amount: bookings.totalAmount,
   notes: bookings.notes,
   status: bookings.status,
-  service_details: bookings.serviceDetails,
+  package_details: bookings.packageDetails,
   counter_amount: bookings.counterAmount,
   counter_message: bookings.counterMessage,
   decline_reason: bookings.declineReason,
@@ -59,7 +60,7 @@ function mapBookingListRow(row: {
   total_amount: number;
   notes: string | null;
   status: (typeof bookings.$inferSelect)["status"];
-  service_details: (typeof bookings.$inferSelect)["serviceDetails"];
+  package_details: (typeof bookings.$inferSelect)["packageDetails"];
   counter_amount: number | null;
   counter_message: string | null;
   decline_reason: string | null;
@@ -121,7 +122,7 @@ const bookingsRouter = new Hono<{ Variables: AuthVariables }>();
 
 /**
  * POST /v1/bookings
- * Creates a booking inquiry with structured service_details and audit event.
+ * Creates a booking inquiry with server-built package_details snapshots.
  * Milestones are seeded on vendor accept (Phase 2), not at inquiry.
  */
 bookingsRouter.post("/", supabaseAuth(), async (c) => {
@@ -144,7 +145,7 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
 
   const {
     vendor_id,
-    service_details,
+    package_details: packageSelections,
     event_date,
     event_type,
     guest_count,
@@ -190,29 +191,78 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
     );
   }
 
-  const serviceIds = service_details.map((detail) => detail.service_id);
-  const ownedServices = await db
-    .select({ id: vendorServices.id })
-    .from(vendorServices)
+  const packageIds = packageSelections.map((detail) => detail.package_id);
+  const ownedPackages = await db
+    .select({
+      id: vendorPackages.id,
+      name: vendorPackages.name,
+      price: vendorPackages.price,
+      unit: vendorPackages.unit,
+      minQuantity: vendorPackages.minQuantity,
+    })
+    .from(vendorPackages)
     .where(
       and(
-        eq(vendorServices.vendorId, vendor_id),
-        eq(vendorServices.isActive, true),
-        inArray(vendorServices.id, serviceIds),
+        eq(vendorPackages.vendorId, vendor_id),
+        eq(vendorPackages.isActive, true),
+        inArray(vendorPackages.id, packageIds),
       ),
     );
 
-  if (ownedServices.length !== serviceIds.length) {
+  if (ownedPackages.length !== new Set(packageIds).size) {
     return c.json(
       {
         data: null,
         error: {
-          code: "INVALID_SERVICE",
-          message: "One or more services do not belong to this vendor.",
+          code: "INVALID_PACKAGE",
+          message: "One or more packages do not belong to this vendor.",
         },
       },
       400,
     );
+  }
+
+  const packageById = new Map(ownedPackages.map((pkg) => [pkg.id, pkg]));
+  const packageSnapshots: BookingPackageDetail[] = [];
+
+  for (const selection of packageSelections) {
+    const pkg = packageById.get(selection.package_id);
+    if (!pkg) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "INVALID_PACKAGE",
+            message: "One or more packages do not belong to this vendor.",
+          },
+        },
+        400,
+      );
+    }
+
+    if (
+      pkg.minQuantity != null &&
+      selection.quantity < pkg.minQuantity
+    ) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "MIN_QUANTITY",
+            message: `Package '${pkg.name}' requires a minimum quantity of ${pkg.minQuantity}.`,
+          },
+        },
+        400,
+      );
+    }
+
+    packageSnapshots.push({
+      package_id: pkg.id as BookingPackageDetail["package_id"],
+      name: pkg.name,
+      quantity: selection.quantity,
+      unit: pkg.unit as PackageUnit,
+      price_at_booking: pkg.price as BookingPackageDetail["price_at_booking"],
+    });
   }
 
   const booking = await db.transaction(async (tx) => {
@@ -225,7 +275,7 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
         eventId: event_id ?? null,
         vendorId: vendor_id,
         customerId,
-        serviceDetails: service_details,
+        packageDetails: packageSnapshots,
         eventDate: event_date,
         eventType: event_type,
         guestCount: guest_count ?? null,
@@ -239,7 +289,7 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
         status: bookings.status,
         total_amount: bookings.totalAmount,
         event_date: bookings.eventDate,
-        service_details: bookings.serviceDetails,
+        package_details: bookings.packageDetails,
       });
 
     await tx.insert(bookingEvents).values({
@@ -1018,7 +1068,7 @@ bookingsRouter.get("/:id", supabaseAuth(), async (c) => {
       notes: bookings.notes,
       city_id: bookings.cityId,
       status: bookings.status,
-      service_details: bookings.serviceDetails,
+      package_details: bookings.packageDetails,
       counter_amount: bookings.counterAmount,
       counter_message: bookings.counterMessage,
       decline_reason: bookings.declineReason,
@@ -1110,7 +1160,7 @@ bookingsRouter.get("/:id", supabaseAuth(), async (c) => {
     notes: row.notes,
     city_id: row.city_id,
     status: row.status,
-    service_details: row.service_details,
+    package_details: row.package_details,
     counter_amount: row.counter_amount,
     counter_message: row.counter_message,
     decline_reason: row.decline_reason,

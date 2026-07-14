@@ -17,7 +17,10 @@ export const ROLE_NAV_LINKS: Record<NavRole, NavLink[]> = {
     { label: "Inquiries", href: "/vendor" },
     { label: "Profile", href: "/vendor/profile" },
   ],
-  admin: [{ label: "Verification", href: "/admin" }],
+  admin: [
+    { label: "Verification", href: "/admin" },
+    { label: "Users", href: "/admin/users" },
+  ],
 };
 
 const AUTH_FLOW_PREFIXES = ["/login", "/callback", "/onboarding"];
@@ -27,7 +30,7 @@ export function resolveNavRole(
 ): NavRole {
   if (role === "vendor") return "vendor";
   if (role === "customer") return "customer";
-  if (role === "admin") return "admin";
+  if (role === "admin" || role === "superadmin") return "admin";
   return "guest";
 }
 
@@ -79,6 +82,13 @@ export function isNavLinkActive(pathname: string, link: NavLink): boolean {
 
   if (link.href === "/vendors") {
     return pathname === "/vendors" || pathname.startsWith("/vendors/");
+  }
+
+  if (link.href === "/admin") {
+    return (
+      pathname === "/admin" ||
+      pathname.startsWith("/admin/vendors")
+    );
   }
 
   return pathname === link.href || pathname.startsWith(`${link.href}/`);

@@ -1,12 +1,14 @@
 import { z } from "zod";
 import {
   vendorCategorySchema,
-  serviceUnitSchema,
+  packageUnitSchema,
+  packageUnitAllowsMinQuantity,
   documentTypeSchema,
   mediaTypeSchema,
   mediaSectionSchema,
-} from "./enums.js";
-import { ulidSchema, paisaSchema } from "./api.js";
+  verificationStatusSchema,
+} from "./enums";
+import { ulidSchema, paisaSchema } from "./api";
 
 // ==========================================
 // 1. Vendor Profile Schemas
@@ -30,52 +32,93 @@ export const updateVendorSchema = createVendorSchema.partial();
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>;
 
 // ==========================================
-// 2. Vendor Service CRUD Schemas
+// 2. Vendor Package CRUD Schemas
 // ==========================================
-export const createServiceSchema = z
+const packageNameSchema = z
+  .string()
+  .min(1, "Package name is required")
+  .max(200, "Package name cannot exceed 200 characters");
+
+const packageDescriptionSchema = z
+  .string()
+  .max(1000, "Description cannot exceed 1000 characters");
+
+const packageInclusionSchema = z
+  .string()
+  .min(1, "Inclusion cannot be empty")
+  .max(200, "Inclusion cannot exceed 200 characters");
+
+const packageInclusionsSchema = z
+  .array(packageInclusionSchema)
+  .max(20, "At most 20 inclusions are allowed");
+
+const packageMinQuantitySchema = z
+  .number()
+  .int("Minimum quantity must be an integer")
+  .positive("Minimum quantity must be at least 1");
+
+function refinePackageMinQuantity<
+  T extends { unit?: z.infer<typeof packageUnitSchema>; min_quantity?: number | null },
+>(data: T): boolean {
+  if (data.min_quantity == null) return true;
+  if (data.unit === undefined) return true;
+  return packageUnitAllowsMinQuantity(data.unit);
+}
+
+export const createPackageSchema = z
   .object({
-    name: z
-      .string()
-      .min(1, "Service name is required")
-      .max(200, "Service name cannot exceed 200 characters"),
-    description: z.string().max(1000, "Description cannot exceed 1000 characters").optional(),
-    price_min: paisaSchema,
-    price_max: paisaSchema,
-    unit: serviceUnitSchema.optional().default("per_event"),
+    name: packageNameSchema,
+    description: packageDescriptionSchema.optional().nullable(),
+    price: paisaSchema,
+    unit: packageUnitSchema.optional().default("flat"),
+    min_quantity: packageMinQuantitySchema.optional().nullable(),
+    inclusions: packageInclusionsSchema.optional().default([]),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
     is_active: z.boolean().optional().default(true),
   })
-  .refine((data) => data.price_max >= data.price_min, {
-    message: "price_max must be greater than or equal to price_min",
-    path: ["price_max"],
+  .refine(refinePackageMinQuantity, {
+    message: "min_quantity is only allowed for per_plate and per_person units",
+    path: ["min_quantity"],
   });
-export type CreateServiceInput = z.infer<typeof createServiceSchema>;
+export type CreatePackageInput = z.infer<typeof createPackageSchema>;
 
-export const updateServiceSchema = z
+export const updatePackageSchema = z
   .object({
-    name: z
-      .string()
-      .min(1, "Service name is required")
-      .max(200, "Service name cannot exceed 200 characters")
-      .optional(),
-    description: z.string().max(1000, "Description cannot exceed 1000 characters").optional(),
-    price_min: paisaSchema.optional(),
-    price_max: paisaSchema.optional(),
-    unit: serviceUnitSchema.optional(),
+    name: packageNameSchema.optional(),
+    description: packageDescriptionSchema.optional().nullable(),
+    price: paisaSchema.optional(),
+    unit: packageUnitSchema.optional(),
+    min_quantity: packageMinQuantitySchema.optional().nullable(),
+    inclusions: packageInclusionsSchema.optional(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
     is_active: z.boolean().optional(),
   })
-  .refine(
-    (data) => {
-      if (data.price_min !== undefined && data.price_max !== undefined) {
-        return data.price_max >= data.price_min;
-      }
-      return true;
-    },
-    {
-      message: "price_max must be greater than or equal to price_min",
-      path: ["price_max"],
-    }
-  );
-export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
+  .refine(refinePackageMinQuantity, {
+    message: "min_quantity is only allowed for per_plate and per_person units",
+    path: ["min_quantity"],
+  });
+export type UpdatePackageInput = z.infer<typeof updatePackageSchema>;
+
+/** Public (buyer) package payload — active packages only. */
+export const publicVendorPackageSchema = z.object({
+  id: ulidSchema,
+  name: z.string(),
+  description: z.string().nullable(),
+  price: paisaSchema,
+  unit: packageUnitSchema,
+  min_quantity: z.number().int().positive().nullable(),
+  inclusions: z.array(z.string()),
+});
+export type PublicVendorPackage = z.infer<typeof publicVendorPackageSchema>;
+
+/** Owner package payload — includes inactive rows and timestamps. */
+export const ownerVendorPackageSchema = publicVendorPackageSchema.extend({
+  is_active: z.boolean(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+  created_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime().optional(),
+});
+export type OwnerVendorPackage = z.infer<typeof ownerVendorPackageSchema>;
 
 // ==========================================
 // 3. Vendor Media Schemas
@@ -141,9 +184,17 @@ export const vendorListItemSchema = z.object({
   avg_rating: z.union([z.string(), z.number()]).nullable(),
   rating_count: z.number().int().nonnegative(),
   booking_count: z.number().int().nonnegative(),
+  /** Lowest active package price in paisa; null when none. */
   price_min: paisaSchema.nullable(),
+  /** Highest active package price in paisa; equals price_min when single or mixed-unit. */
   price_max: paisaSchema.nullable(),
-  unit: serviceUnitSchema.nullable(),
+  /** Display unit: shared unit, or unit of the cheapest package when mixed. */
+  unit: packageUnitSchema.nullable(),
+  /** True when active packages use more than one unit (UI shows starting-at, not a range). */
+  units_mixed: z.boolean(),
+  profile_photo_url: z.string().nullable(),
+  /** First banner/gallery photo, ordered by position; null when vendor has none uploaded. */
+  cover_image: z.string().nullable(),
 });
 export type VendorListItem = z.infer<typeof vendorListItemSchema>;
 
@@ -170,3 +221,32 @@ export const vendorListQuerySchema = z
     }
   );
 export type VendorListQuery = z.infer<typeof vendorListQuerySchema>;
+
+// ==========================================
+// 7. Vendor go-live readiness (submit for review)
+// ==========================================
+export const vendorReadinessChecksSchema = z.object({
+  category: z.boolean(),
+  packages: z.boolean(),
+  portfolio: z.boolean(),
+});
+export type VendorReadinessChecks = z.infer<typeof vendorReadinessChecksSchema>;
+
+export const vendorReadinessResponseSchema = z.object({
+  complete: z.boolean(),
+  checks: vendorReadinessChecksSchema,
+  missing: z.array(z.string()),
+});
+export type VendorReadinessResponse = z.infer<typeof vendorReadinessResponseSchema>;
+
+export const submitVendorForReviewSchema = z.object({});
+export type SubmitVendorForReviewInput = z.infer<typeof submitVendorForReviewSchema>;
+
+export const submitVendorForReviewResultSchema = z.object({
+  id: ulidSchema,
+  verification_status: verificationStatusSchema,
+  submitted_at: z.string().datetime(),
+});
+export type SubmitVendorForReviewResult = z.infer<
+  typeof submitVendorForReviewResultSchema
+>;

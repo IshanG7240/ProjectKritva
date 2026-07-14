@@ -7,17 +7,35 @@ import { Hono } from "hono";
 import { ulid } from "ulid";
 import { and, asc, desc, eq, min, max, or, sql } from "drizzle-orm";
 import { db } from "@kritva/db/client";
-import { vendors, vendorServices, vendorMedia } from "@kritva/db";
+import { users, vendors, vendorPackages, vendorMedia } from "@kritva/db";
 import {
   createMediaSchema,
-  createServiceSchema,
-  updateServiceSchema,
+  createPackageSchema,
+  packageUnitAllowsMinQuantity,
+  submitVendorForReviewSchema,
+  updatePackageSchema,
   updateVendorSchema,
   vendorListQuerySchema,
+  type PackageUnit,
 } from "@kritva/types";
+import { dispatch as dispatchNotification } from "@kritva/notifications/dispatcher";
+import { appendAuditLog } from "../lib/audit.js";
+import { computeVendorReadiness } from "../lib/vendor-readiness.js";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
 
 const vendorsRouter = new Hono<{ Variables: AuthVariables }>();
+
+function requestMeta(c: {
+  req: { header: (name: string) => string | undefined };
+}) {
+  return {
+    ipAddress:
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+      c.req.header("x-real-ip") ??
+      null,
+    userAgent: c.req.header("user-agent") ?? null,
+  };
+}
 
 async function resolveVendorForUser(userId: string) {
   const [vendor] = await db
@@ -28,23 +46,46 @@ async function resolveVendorForUser(userId: string) {
   return vendor ?? null;
 }
 
-function mapServiceRow(s: {
+function mapPackageRow(p: {
   id: string;
   name: string;
   description: string | null;
-  price_min: number;
-  price_max: number;
+  price: number;
   unit: string;
+  min_quantity?: number | null;
+  inclusions?: string[] | null;
+  metadata?: Record<string, unknown> | null;
   is_active?: boolean;
+  created_at?: Date | string | null;
+  updated_at?: Date | string | null;
 }) {
+  const inclusions = Array.isArray(p.inclusions) ? p.inclusions : [];
   return {
-    id: s.id,
-    name: s.name,
-    description: s.description ?? null,
-    price_min: Number(s.price_min),
-    price_max: Number(s.price_max),
-    unit: s.unit,
-    ...(s.is_active !== undefined ? { is_active: s.is_active } : {}),
+    id: p.id,
+    name: p.name,
+    description: p.description ?? null,
+    price: Number(p.price),
+    unit: p.unit as PackageUnit,
+    min_quantity: p.min_quantity != null ? Number(p.min_quantity) : null,
+    inclusions,
+    ...(p.metadata !== undefined ? { metadata: p.metadata ?? null } : {}),
+    ...(p.is_active !== undefined ? { is_active: p.is_active } : {}),
+    ...(p.created_at != null
+      ? {
+          created_at:
+            p.created_at instanceof Date
+              ? p.created_at.toISOString()
+              : p.created_at,
+        }
+      : {}),
+    ...(p.updated_at != null
+      ? {
+          updated_at:
+            p.updated_at instanceof Date
+              ? p.updated_at.toISOString()
+              : p.updated_at,
+        }
+      : {}),
   };
 }
 
@@ -75,7 +116,7 @@ const DEFAULT_PAGE_SIZE = 12;
 /**
  * GET /v1/vendors
  * Public directory of approved vendors with search, filters, and pagination.
- * Price range is aggregated from active vendor_services rows.
+ * Price range is aggregated from active vendor_packages rows.
  */
 vendorsRouter.get("/", async (c) => {
   const parsed = vendorListQuerySchema.safeParse({
@@ -125,13 +166,13 @@ vendorsRouter.get("/", async (c) => {
 
   if (query.price_min != null) {
     havingConditions.push(
-      sql`min(${vendorServices.priceMin}) >= ${query.price_min}`,
+      sql`min(${vendorPackages.price}) >= ${query.price_min}`,
     );
   }
 
   if (query.price_max != null) {
     havingConditions.push(
-      sql`min(${vendorServices.priceMin}) <= ${query.price_max}`,
+      sql`min(${vendorPackages.price}) <= ${query.price_max}`,
     );
   }
 
@@ -145,17 +186,30 @@ vendorsRouter.get("/", async (c) => {
       avg_rating: vendors.avgRating,
       rating_count: vendors.ratingCount,
       booking_count: vendors.bookingCount,
-      price_min: min(vendorServices.priceMin),
-      price_max: max(vendorServices.priceMax),
-      unit: sql<string | null>`mode() within group (order by ${vendorServices.unit})`,
+      profile_photo_url: vendors.profilePhotoUrl,
+      cover_image: sql<string | null>`(
+        SELECT ${vendorMedia.url} FROM ${vendorMedia}
+        WHERE ${vendorMedia.vendorId} = ${vendors.id}
+          AND ${vendorMedia.section} = 'banner'
+          AND ${vendorMedia.type} = 'image'
+        ORDER BY ${vendorMedia.position} ASC
+        LIMIT 1
+      )`,
+      price_min: min(vendorPackages.price),
+      price_max: max(vendorPackages.price),
+      unit: sql<string | null>`(
+        array_agg(${vendorPackages.unit} ORDER BY ${vendorPackages.price} ASC)
+        FILTER (WHERE ${vendorPackages.id} IS NOT NULL)
+      )[1]`,
+      units_mixed: sql<boolean>`count(DISTINCT ${vendorPackages.unit}) > 1`,
       total_count: sql<number>`count(*) over()`.as("total_count"),
     })
     .from(vendors)
     .leftJoin(
-      vendorServices,
+      vendorPackages,
       and(
-        eq(vendorServices.vendorId, vendors.id),
-        eq(vendorServices.isActive, true),
+        eq(vendorPackages.vendorId, vendors.id),
+        eq(vendorPackages.isActive, true),
       ),
     )
     .where(and(...whereConditions))
@@ -168,6 +222,7 @@ vendorsRouter.get("/", async (c) => {
       vendors.avgRating,
       vendors.ratingCount,
       vendors.bookingCount,
+      vendors.profilePhotoUrl,
     )
     .$dynamic();
 
@@ -182,19 +237,28 @@ vendorsRouter.get("/", async (c) => {
 
   const totalCount = rows.length > 0 ? Number(rows[0]!.total_count) : 0;
 
-  const vendorList = rows.map((row) => ({
-    id: row.id,
-    business_name: row.business_name,
-    slug: row.slug,
-    category: row.category,
-    city_id: row.city_id,
-    avg_rating: row.avg_rating,
-    rating_count: row.rating_count,
-    booking_count: row.booking_count,
-    price_min: row.price_min != null ? Number(row.price_min) : null,
-    price_max: row.price_max != null ? Number(row.price_max) : null,
-    unit: row.unit ?? null,
-  }));
+  const vendorList = rows.map((row) => {
+    const priceMin = row.price_min != null ? Number(row.price_min) : null;
+    const priceMax = row.price_max != null ? Number(row.price_max) : null;
+    const unitsMixed = Boolean(row.units_mixed);
+    return {
+      id: row.id,
+      business_name: row.business_name,
+      slug: row.slug,
+      category: row.category,
+      city_id: row.city_id,
+      avg_rating: row.avg_rating,
+      rating_count: row.rating_count,
+      booking_count: row.booking_count,
+      profile_photo_url: row.profile_photo_url ?? null,
+      cover_image: row.cover_image ?? null,
+      price_min: priceMin,
+      // Mixed units: expose min only as starting price (price_max = price_min)
+      price_max: unitsMixed && priceMin != null ? priceMin : priceMax,
+      unit: (row.unit as PackageUnit | null) ?? null,
+      units_mixed: unitsMixed,
+    };
+  });
 
   return c.json(
     {
@@ -208,6 +272,191 @@ vendorsRouter.get("/", async (c) => {
           hasNextPage: offset + vendorList.length < totalCount,
         },
       },
+    },
+    200,
+  );
+});
+
+/**
+ * GET /v1/vendors/me/readiness
+ * Returns profile completeness checks for submit-for-review.
+ */
+vendorsRouter.get("/me/readiness", supabaseAuth(), async (c) => {
+  const userId = c.get("user").id;
+  const vendor = await resolveVendorForUser(userId);
+
+  if (!vendor) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "No vendor profile is associated with this account.",
+        },
+      },
+      403,
+    );
+  }
+
+  const readiness = await computeVendorReadiness(vendor.id);
+
+  return c.json({ data: readiness, error: null }, 200);
+});
+
+/**
+ * POST /v1/vendors/me/submit
+ * Submits a complete vendor profile for admin review.
+ */
+vendorsRouter.post("/me/submit", supabaseAuth(), async (c) => {
+  const authUser = c.get("user");
+  const userId = authUser.id;
+  const vendor = await resolveVendorForUser(userId);
+
+  if (!vendor) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "No vendor profile is associated with this account.",
+        },
+      },
+      403,
+    );
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = submitVendorForReviewSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.errors[0]?.message ?? "Invalid request body",
+          fields: parsed.error.flatten().fieldErrors,
+        },
+      },
+      400,
+    );
+  }
+
+  const [vendorRow] = await db
+    .select({
+      id: vendors.id,
+      business_name: vendors.businessName,
+      slug: vendors.slug,
+      verification_status: vendors.verificationStatus,
+    })
+    .from(vendors)
+    .where(eq(vendors.id, vendor.id))
+    .limit(1);
+
+  if (!vendorRow) {
+    return c.json(
+      {
+        data: null,
+        error: { code: "NOT_FOUND", message: "Vendor profile not found." },
+      },
+      404,
+    );
+  }
+
+  if (
+    vendorRow.verification_status !== "draft" &&
+    vendorRow.verification_status !== "rejected"
+  ) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "CONFLICT",
+          message: `Cannot submit while status is ${vendorRow.verification_status}.`,
+        },
+      },
+      409,
+    );
+  }
+
+  const readiness = await computeVendorReadiness(vendor.id);
+  if (!readiness.complete) {
+    return c.json(
+      {
+        data: readiness,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Profile is incomplete. Fix the missing items and try again.",
+        },
+      },
+      422,
+    );
+  }
+
+  const [owner] = await db
+    .select({ email: users.email, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const now = new Date();
+  const meta = requestMeta(c);
+
+  const [updated] = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(vendors)
+      .set({
+        verificationStatus: "pending_review",
+        submittedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(vendors.id, vendor.id))
+      .returning({
+        id: vendors.id,
+        verification_status: vendors.verificationStatus,
+        submitted_at: vendors.submittedAt,
+      });
+
+    await appendAuditLog(tx, {
+      actorId: userId,
+      actorRole: owner?.role ?? "vendor",
+      action: "vendor.submit",
+      resourceType: "vendor",
+      resourceId: vendor.id,
+      oldValue: {
+        verification_status: vendorRow.verification_status,
+        submitted_at: null,
+      },
+      newValue: {
+        verification_status: "pending_review",
+        submitted_at: now.toISOString(),
+      },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    return [row];
+  });
+
+  const webBase = process.env.WEB_BASE_URL?.replace(/\/$/, "") ?? "";
+  void dispatchNotification({
+    kind: "vendor_submitted",
+    vendor_id: vendor.id,
+    user_id: userId,
+    business_name: vendorRow.business_name,
+    slug: vendorRow.slug,
+    to_email: owner?.email ?? null,
+    profile_url: webBase ? `${webBase}/vendor/profile` : "/vendor/profile",
+  }).catch(() => {});
+
+  return c.json(
+    {
+      data: {
+        id: updated!.id,
+        verification_status: updated!.verification_status,
+        submitted_at: updated!.submitted_at!.toISOString(),
+      },
+      error: null,
     },
     200,
   );
@@ -235,6 +484,7 @@ vendorsRouter.get("/me", supabaseAuth(), async (c) => {
       booking_count: vendors.bookingCount,
       response_time_hours: vendors.responseTimeHours,
       verification_status: vendors.verificationStatus,
+      verification_notes: vendors.verificationNotes,
     })
     .from(vendors)
     .where(eq(vendors.userId, userId))
@@ -253,20 +503,24 @@ vendorsRouter.get("/me", supabaseAuth(), async (c) => {
     );
   }
 
-  const [services, media] = await Promise.all([
+  const [packages, media] = await Promise.all([
     db
       .select({
-        id: vendorServices.id,
-        name: vendorServices.name,
-        description: vendorServices.description,
-        price_min: vendorServices.priceMin,
-        price_max: vendorServices.priceMax,
-        unit: vendorServices.unit,
-        is_active: vendorServices.isActive,
+        id: vendorPackages.id,
+        name: vendorPackages.name,
+        description: vendorPackages.description,
+        price: vendorPackages.price,
+        unit: vendorPackages.unit,
+        min_quantity: vendorPackages.minQuantity,
+        inclusions: vendorPackages.inclusions,
+        metadata: vendorPackages.metadata,
+        is_active: vendorPackages.isActive,
+        created_at: vendorPackages.createdAt,
+        updated_at: vendorPackages.updatedAt,
       })
-      .from(vendorServices)
-      .where(eq(vendorServices.vendorId, vendor.id))
-      .orderBy(desc(vendorServices.createdAt)),
+      .from(vendorPackages)
+      .where(eq(vendorPackages.vendorId, vendor.id))
+      .orderBy(desc(vendorPackages.createdAt)),
     db
       .select({
         id: vendorMedia.id,
@@ -303,7 +557,8 @@ vendorsRouter.get("/me", supabaseAuth(), async (c) => {
               ? Number(vendor.response_time_hours)
               : null,
           verification_status: vendor.verification_status,
-          services: services.map(mapServiceRow),
+          verification_notes: vendor.verification_notes ?? null,
+          packages: packages.map(mapPackageRow),
           media: media.map(mapMediaRow),
         },
       },
@@ -415,10 +670,55 @@ vendorsRouter.patch("/me", supabaseAuth(), async (c) => {
 });
 
 /**
- * POST /v1/vendors/me/services
- * Authenticated vendor: creates a new service offering.
+ * GET /v1/vendors/me/packages
+ * Authenticated vendor: lists all packages (active and inactive).
  */
-vendorsRouter.post("/me/services", supabaseAuth(), async (c) => {
+vendorsRouter.get("/me/packages", supabaseAuth(), async (c) => {
+  const userId = c.get("user").id;
+  const vendor = await resolveVendorForUser(userId);
+
+  if (!vendor) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "No vendor profile is associated with this account.",
+        },
+      },
+      403,
+    );
+  }
+
+  const packages = await db
+    .select({
+      id: vendorPackages.id,
+      name: vendorPackages.name,
+      description: vendorPackages.description,
+      price: vendorPackages.price,
+      unit: vendorPackages.unit,
+      min_quantity: vendorPackages.minQuantity,
+      inclusions: vendorPackages.inclusions,
+      metadata: vendorPackages.metadata,
+      is_active: vendorPackages.isActive,
+      created_at: vendorPackages.createdAt,
+      updated_at: vendorPackages.updatedAt,
+    })
+    .from(vendorPackages)
+    .where(eq(vendorPackages.vendorId, vendor.id))
+    .orderBy(desc(vendorPackages.createdAt));
+
+  return c.json(
+    { data: { packages: packages.map(mapPackageRow) }, error: null },
+    200,
+  );
+});
+
+/**
+ * POST /v1/vendors/me/packages
+ * Authenticated vendor: creates a new package offering.
+ */
+vendorsRouter.post("/me/packages", supabaseAuth(), async (c) => {
   const userId = c.get("user").id;
   const vendor = await resolveVendorForUser(userId);
 
@@ -436,7 +736,7 @@ vendorsRouter.post("/me/services", supabaseAuth(), async (c) => {
   }
 
   const body = await c.req.json();
-  const parsed = createServiceSchema.safeParse(body);
+  const parsed = createPackageSchema.safeParse(body);
 
   if (!parsed.success) {
     return c.json(
@@ -453,43 +753,52 @@ vendorsRouter.post("/me/services", supabaseAuth(), async (c) => {
   }
 
   const data = parsed.data;
-  const serviceId = ulid();
+  const packageId = ulid();
+  const minQuantity = packageUnitAllowsMinQuantity(data.unit)
+    ? (data.min_quantity ?? null)
+    : null;
 
   const [created] = await db
-    .insert(vendorServices)
+    .insert(vendorPackages)
     .values({
-      id: serviceId,
+      id: packageId,
       vendorId: vendor.id,
       name: data.name,
-      description: data.description,
-      priceMin: data.price_min,
-      priceMax: data.price_max,
+      description: data.description ?? null,
+      price: data.price,
       unit: data.unit,
+      minQuantity,
+      inclusions: data.inclusions ?? [],
+      metadata: data.metadata ?? {},
       isActive: data.is_active ?? true,
     })
     .returning({
-      id: vendorServices.id,
-      name: vendorServices.name,
-      description: vendorServices.description,
-      price_min: vendorServices.priceMin,
-      price_max: vendorServices.priceMax,
-      unit: vendorServices.unit,
-      is_active: vendorServices.isActive,
+      id: vendorPackages.id,
+      name: vendorPackages.name,
+      description: vendorPackages.description,
+      price: vendorPackages.price,
+      unit: vendorPackages.unit,
+      min_quantity: vendorPackages.minQuantity,
+      inclusions: vendorPackages.inclusions,
+      metadata: vendorPackages.metadata,
+      is_active: vendorPackages.isActive,
+      created_at: vendorPackages.createdAt,
+      updated_at: vendorPackages.updatedAt,
     });
 
   return c.json(
-    { data: { service: mapServiceRow(created!) }, error: null },
+    { data: { package: mapPackageRow(created!) }, error: null },
     201,
   );
 });
 
 /**
- * PATCH /v1/vendors/me/services/:serviceId
- * Authenticated vendor: updates an existing service.
+ * PATCH /v1/vendors/me/packages/:id
+ * Authenticated vendor: updates an existing package (including activate/deactivate).
  */
-vendorsRouter.patch("/me/services/:serviceId", supabaseAuth(), async (c) => {
+vendorsRouter.patch("/me/packages/:id", supabaseAuth(), async (c) => {
   const userId = c.get("user").id;
-  const serviceId = c.req.param("serviceId");
+  const packageId = c.req.param("id");
   const vendor = await resolveVendorForUser(userId);
 
   if (!vendor) {
@@ -506,12 +815,16 @@ vendorsRouter.patch("/me/services/:serviceId", supabaseAuth(), async (c) => {
   }
 
   const [existing] = await db
-    .select({ id: vendorServices.id })
-    .from(vendorServices)
+    .select({
+      id: vendorPackages.id,
+      unit: vendorPackages.unit,
+      minQuantity: vendorPackages.minQuantity,
+    })
+    .from(vendorPackages)
     .where(
       and(
-        eq(vendorServices.id, serviceId),
-        eq(vendorServices.vendorId, vendor.id),
+        eq(vendorPackages.id, packageId),
+        eq(vendorPackages.vendorId, vendor.id),
       ),
     )
     .limit(1);
@@ -522,7 +835,7 @@ vendorsRouter.patch("/me/services/:serviceId", supabaseAuth(), async (c) => {
         data: null,
         error: {
           code: "NOT_FOUND",
-          message: `Service '${serviceId}' was not found.`,
+          message: `Package '${packageId}' was not found.`,
         },
       },
       404,
@@ -530,7 +843,7 @@ vendorsRouter.patch("/me/services/:serviceId", supabaseAuth(), async (c) => {
   }
 
   const body = await c.req.json();
-  const parsed = updateServiceSchema.safeParse(body);
+  const parsed = updatePackageSchema.safeParse(body);
 
   if (!parsed.success) {
     return c.json(
@@ -560,42 +873,64 @@ vendorsRouter.patch("/me/services/:serviceId", supabaseAuth(), async (c) => {
     );
   }
 
+  const nextUnit = data.unit ?? existing.unit;
+  let nextMinQuantity =
+    data.min_quantity !== undefined
+      ? data.min_quantity
+      : existing.minQuantity;
+  if (!packageUnitAllowsMinQuantity(nextUnit)) {
+    nextMinQuantity = null;
+  }
+
   const [updated] = await db
-    .update(vendorServices)
+    .update(vendorPackages)
     .set({
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.description !== undefined
         ? { description: data.description }
         : {}),
-      ...(data.price_min !== undefined ? { priceMin: data.price_min } : {}),
-      ...(data.price_max !== undefined ? { priceMax: data.price_max } : {}),
+      ...(data.price !== undefined ? { price: data.price } : {}),
       ...(data.unit !== undefined ? { unit: data.unit } : {}),
+      minQuantity: nextMinQuantity,
+      ...(data.inclusions !== undefined ? { inclusions: data.inclusions } : {}),
+      ...(data.metadata !== undefined
+        ? { metadata: data.metadata ?? {} }
+        : {}),
       ...(data.is_active !== undefined ? { isActive: data.is_active } : {}),
     })
-    .where(eq(vendorServices.id, serviceId))
+    .where(
+      and(
+        eq(vendorPackages.id, packageId),
+        eq(vendorPackages.vendorId, vendor.id),
+      ),
+    )
     .returning({
-      id: vendorServices.id,
-      name: vendorServices.name,
-      description: vendorServices.description,
-      price_min: vendorServices.priceMin,
-      price_max: vendorServices.priceMax,
-      unit: vendorServices.unit,
-      is_active: vendorServices.isActive,
+      id: vendorPackages.id,
+      name: vendorPackages.name,
+      description: vendorPackages.description,
+      price: vendorPackages.price,
+      unit: vendorPackages.unit,
+      min_quantity: vendorPackages.minQuantity,
+      inclusions: vendorPackages.inclusions,
+      metadata: vendorPackages.metadata,
+      is_active: vendorPackages.isActive,
+      created_at: vendorPackages.createdAt,
+      updated_at: vendorPackages.updatedAt,
     });
 
   return c.json(
-    { data: { service: mapServiceRow(updated!) }, error: null },
+    { data: { package: mapPackageRow(updated!) }, error: null },
     200,
   );
 });
 
 /**
- * DELETE /v1/vendors/me/services/:serviceId
- * Authenticated vendor: soft-deletes a service (sets is_active = false).
+ * DELETE /v1/vendors/me/packages/:id
+ * Authenticated vendor: soft-deletes a package (sets is_active = false).
  */
-vendorsRouter.delete("/me/services/:serviceId", supabaseAuth(), async (c) => {
+vendorsRouter.delete("/me/packages/:id", supabaseAuth(), async (c) => {
   const userId = c.get("user").id;
-  const serviceId = c.req.param("serviceId");
+  const packageId = c.req.param("id");
   const vendor = await resolveVendorForUser(userId);
 
   if (!vendor) {
@@ -612,12 +947,12 @@ vendorsRouter.delete("/me/services/:serviceId", supabaseAuth(), async (c) => {
   }
 
   const [existing] = await db
-    .select({ id: vendorServices.id })
-    .from(vendorServices)
+    .select({ id: vendorPackages.id })
+    .from(vendorPackages)
     .where(
       and(
-        eq(vendorServices.id, serviceId),
-        eq(vendorServices.vendorId, vendor.id),
+        eq(vendorPackages.id, packageId),
+        eq(vendorPackages.vendorId, vendor.id),
       ),
     )
     .limit(1);
@@ -628,7 +963,7 @@ vendorsRouter.delete("/me/services/:serviceId", supabaseAuth(), async (c) => {
         data: null,
         error: {
           code: "NOT_FOUND",
-          message: `Service '${serviceId}' was not found.`,
+          message: `Package '${packageId}' was not found.`,
         },
       },
       404,
@@ -636,11 +971,16 @@ vendorsRouter.delete("/me/services/:serviceId", supabaseAuth(), async (c) => {
   }
 
   await db
-    .update(vendorServices)
+    .update(vendorPackages)
     .set({ isActive: false })
-    .where(eq(vendorServices.id, serviceId));
+    .where(
+      and(
+        eq(vendorPackages.id, packageId),
+        eq(vendorPackages.vendorId, vendor.id),
+      ),
+    );
 
-  return c.json({ data: { id: serviceId }, error: null }, 200);
+  return c.json({ data: { id: packageId }, error: null }, 200);
 });
 
 /**
@@ -807,23 +1147,25 @@ vendorsRouter.get("/:idOrSlug", async (c) => {
     );
   }
 
-  const [services, media] = await Promise.all([
+  const [packages, media] = await Promise.all([
     db
       .select({
-        id: vendorServices.id,
-        name: vendorServices.name,
-        description: vendorServices.description,
-        price_min: vendorServices.priceMin,
-        price_max: vendorServices.priceMax,
-        unit: vendorServices.unit,
+        id: vendorPackages.id,
+        name: vendorPackages.name,
+        description: vendorPackages.description,
+        price: vendorPackages.price,
+        unit: vendorPackages.unit,
+        min_quantity: vendorPackages.minQuantity,
+        inclusions: vendorPackages.inclusions,
       })
-      .from(vendorServices)
+      .from(vendorPackages)
       .where(
         and(
-          eq(vendorServices.vendorId, vendor.id),
-          eq(vendorServices.isActive, true),
+          eq(vendorPackages.vendorId, vendor.id),
+          eq(vendorPackages.isActive, true),
         ),
-      ),
+      )
+      .orderBy(desc(vendorPackages.createdAt)),
     db
       .select({
         id: vendorMedia.id,
@@ -856,7 +1198,7 @@ vendorsRouter.get("/:idOrSlug", async (c) => {
       vendor.response_time_hours != null
         ? Number(vendor.response_time_hours)
         : null,
-    services: services.map((s) => mapServiceRow(s)),
+    packages: packages.map((p) => mapPackageRow(p)),
     media: media.map((m) => mapMediaRow(m)),
   };
 

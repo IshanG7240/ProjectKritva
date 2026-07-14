@@ -2,7 +2,7 @@
 
 /**
  * Customer dashboard — protected for role: customer.
- * Shows bookings awaiting payment, handles the mock escrow checkout loop,
+ * Shows bookings awaiting payment, handles Razorpay escrow checkout,
  * and lets the customer release escrowed funds to the vendor after the event.
  */
 
@@ -13,9 +13,13 @@ import { useRequireAuth } from "@/hooks/use-require-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
+  checkoutBookingPayment,
+  PaymentCancelledError,
+} from "@/lib/razorpay-checkout";
+import {
   formatEventDate,
   formatInr,
-  formatServiceSummary,
+  formatPackageSummary,
 } from "@/lib/booking-form";
 import { AppNav } from "@/components/layout/app-nav";
 import {
@@ -28,8 +32,8 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 
-interface ServiceDetail {
-  service_id: string;
+interface PackageDetail {
+  package_id: string;
   name: string;
   quantity: number;
   price_at_booking: number;
@@ -42,7 +46,7 @@ interface Booking {
   event_type: string;
   total_amount: number;
   status: string;
-  service_details?: ServiceDetail[];
+  package_details?: PackageDetail[];
   counter_amount?: number | null;
   counter_message?: string | null;
 }
@@ -76,15 +80,7 @@ async function declineCounter(bookingId: string): Promise<void> {
 }
 
 async function checkout(bookingId: string): Promise<void> {
-  const initRes = await apiClient.post("/v1/payments/initiate", {
-    booking_id: bookingId,
-  });
-  if (initRes.error) throw new Error(initRes.error.message);
-
-  const captureRes = await apiClient.post("/v1/payments/simulate-capture", {
-    booking_id: bookingId,
-  });
-  if (captureRes.error) throw new Error(captureRes.error.message);
+  await checkoutBookingPayment(bookingId);
 }
 
 async function releaseFunds(bookingId: string): Promise<void> {
@@ -134,7 +130,7 @@ function CounterOfferRow({
   isDeclining: boolean;
   actionError: string | null;
 }) {
-  const service = formatServiceSummary(booking.service_details);
+  const packageSummary = formatPackageSummary(booking.package_details);
   const counterAmount = booking.counter_amount ?? 0;
   const priceDiff = counterAmount - booking.total_amount;
   const isHigher = priceDiff > 0;
@@ -147,7 +143,7 @@ function CounterOfferRow({
             {formatEventType(booking.event_type)} ·{" "}
             {formatEventDate(booking.event_date)}
           </p>
-          <p className="font-sans text-xs text-mk-muted">{service}</p>
+          <p className="font-sans text-xs text-mk-muted">{packageSummary}</p>
 
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-sans text-sm">
             <span className="text-mk-muted">
@@ -338,6 +334,9 @@ export default function CustomerDashboardPage() {
       alert("Payment successful! Funds held in escrow.");
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
     },
+    onError: (err) => {
+      if (err instanceof PaymentCancelledError) return;
+    },
   });
 
   const releaseMutation = useMutation({
@@ -403,7 +402,7 @@ export default function CustomerDashboardPage() {
                       {formatEventDate(booking.event_date)}
                     </p>
                     <p className="font-sans text-xs text-mk-muted">
-                      {formatServiceSummary(booking.service_details)}
+                      {formatPackageSummary(booking.package_details)}
                     </p>
                     <p className="font-sans text-xs text-mk-muted">
                       Budget:{" "}
@@ -465,7 +464,7 @@ export default function CustomerDashboardPage() {
                       {formatEventDate(booking.event_date)}
                     </p>
                     <p className="font-sans text-xs text-mk-muted">
-                      {formatServiceSummary(booking.service_details)}
+                      {formatPackageSummary(booking.package_details)}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -487,7 +486,8 @@ export default function CustomerDashboardPage() {
                       Details
                     </Link>
                   </div>
-                  {payMutation.isError && (
+                  {payMutation.isError &&
+                    !(payMutation.error instanceof PaymentCancelledError) && (
                     <p className="w-full font-sans text-xs text-red-600">
                       Error:{" "}
                       {payMutation.error instanceof Error
@@ -514,7 +514,7 @@ export default function CustomerDashboardPage() {
                       {formatEventDate(booking.event_date)}
                     </p>
                     <p className="font-sans text-xs text-mk-muted">
-                      {formatServiceSummary(booking.service_details)}
+                      {formatPackageSummary(booking.package_details)}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -565,7 +565,7 @@ export default function CustomerDashboardPage() {
                       {formatEventDate(booking.event_date)}
                     </p>
                     <p className="font-sans text-xs text-mk-muted">
-                      {formatServiceSummary(booking.service_details)}
+                      {formatPackageSummary(booking.package_details)}
                     </p>
                   </div>
                   <span className="font-sans text-sm font-medium tabular-nums text-mk-ink">

@@ -4,7 +4,7 @@ import { db } from "./client.js";
 import {
   users,
   vendors,
-  vendorServices,
+  vendorPackages,
   vendorMedia,
   vendorAvailability,
   vendorDocuments,
@@ -127,8 +127,8 @@ async function main() {
     seededCustomers.push({ id: userId, ...c });
   }
 
-  // 3. Generate 20 Vendors
-  console.log("Creating 20 vendor users and profiles...");
+  // 3. Generate vendors (approved marketplace demos + go-live QA fixtures)
+  console.log("Creating vendor users and profiles...");
   const vendorCategories = ["catering", "photography", "venue", "decor", "other"];
   const seededVendors: any[] = [];
 
@@ -154,8 +154,17 @@ async function main() {
     });
 
     // Create Vendor Profile
-    let verificationStatus: "pending_review" | "approved" | "rejected" | "suspended" = "approved";
-    if (i === 18) verificationStatus = "pending_review";
+    let verificationStatus:
+      | "draft"
+      | "pending_review"
+      | "approved"
+      | "rejected"
+      | "suspended" = "approved";
+    let submittedAt: Date | null = null;
+    if (i === 18) {
+      verificationStatus = "pending_review";
+      submittedAt = new Date("2026-07-01T10:00:00Z");
+    }
     if (i === 19) verificationStatus = "rejected";
     if (i === 20) verificationStatus = "suspended";
 
@@ -173,29 +182,34 @@ async function main() {
       bookingCount: 10 + i,
       responseTimeHours: (1.5 + (i % 5) / 2).toFixed(1),
       verificationStatus,
+      submittedAt,
     });
 
-    // Create Vendor Services (2 per vendor)
-    const service1Id = generateUlid();
-    const service2Id = generateUlid();
-    await db.insert(vendorServices).values({
-      id: service1Id,
+    // Create Vendor Packages (2 per vendor)
+    const package1Id = generateUlid();
+    const package2Id = generateUlid();
+    await db.insert(vendorPackages).values({
+      id: package1Id,
       vendorId,
       name: `Standard ${category} Package`,
       description: `Comprehensive starter package for ${category} requirements.`,
-      priceMin: 5000000, // ₹50,000 in paisa
-      priceMax: 10000000, // ₹1,00,000 in paisa
-      unit: "per_event",
+      price: 5000000, // ₹50,000 in paisa
+      unit: "flat",
+      minQuantity: null,
+      inclusions: ["Consultation", "Basic setup"],
+      metadata: {},
       isActive: true,
     });
-    await db.insert(vendorServices).values({
-      id: service2Id,
+    await db.insert(vendorPackages).values({
+      id: package2Id,
       vendorId,
       name: `Premium ${category} Package`,
       description: `Full-service premium package with dedicated resources.`,
-      priceMin: 12000000, // ₹1,20,000 in paisa
-      priceMax: 25000000, // ₹2,50,000 in paisa
-      unit: "per_event",
+      price: 12000000, // ₹1,20,000 in paisa
+      unit: "flat",
+      minQuantity: null,
+      inclusions: ["Consultation", "Dedicated coordinator", "Premium setup"],
+      metadata: {},
       isActive: true,
     });
 
@@ -264,6 +278,47 @@ async function main() {
     });
   }
 
+  // Draft incomplete vendor for go-live QA (missing category, services, portfolio)
+  console.log("Creating draft incomplete vendor for QA...");
+  const draftUserId = generateUlid();
+  const draftVendorId = generateUlid();
+  await db.insert(users).values({
+    id: draftUserId,
+    phone: "+919999999921",
+    email: "vendor-draft-qa@example.com",
+    name: "Draft QA Vendor Owner",
+    role: "vendor",
+    cityId: "delhi-ncr",
+    status: "active",
+    onboardingComplete: true,
+  });
+  await db.insert(vendors).values({
+    id: draftVendorId,
+    userId: draftUserId,
+    businessName: "Draft QA Vendor (incomplete)",
+    slug: "vendor-draft-qa-incomplete",
+    category: [],
+    cityId: "delhi-ncr",
+    description: "Incomplete draft profile for go-live readiness QA.",
+    verificationStatus: "draft",
+  });
+  await db.insert(vendorMedia).values({
+    id: generateUlid(),
+    vendorId: draftVendorId,
+    url: "https://images.unsplash.com/photo-draft-qa-1",
+    type: "image",
+    section: "portfolio",
+    position: 1,
+    altText: "Draft QA placeholder",
+  });
+  seededVendors.push({
+    id: draftVendorId,
+    userId: draftUserId,
+    businessName: "Draft QA Vendor (incomplete)",
+    category: null,
+    verificationStatus: "draft",
+  });
+
   // 4. Create 10 Bookings in various states
   console.log("Creating 10 bookings in various states...");
   // We'll create events for customers first
@@ -307,23 +362,22 @@ async function main() {
     const bookingId = generateUlid();
     const eventDate = `2026-06-${20 + idx}`;
 
-    // Service details structure
-    const serviceDetails = {
-      services: [
-        {
-          name: `Standard ${vendor.category} Service`,
-          price: 5000000,
-          qty: 1,
-        },
-      ],
-    };
+    const packageDetails = [
+      {
+        package_id: generateUlid(),
+        name: `Standard ${vendor.category} Package`,
+        quantity: 1,
+        unit: "flat",
+        price_at_booking: 5000000,
+      },
+    ];
 
     await db.insert(bookings).values({
       id: bookingId,
       eventId: event.id,
       vendorId: vendor.id,
       customerId: customer.id,
-      serviceDetails,
+      packageDetails,
       totalAmount: 5000000, // ₹50,000 in paisa
       status,
       eventDate,

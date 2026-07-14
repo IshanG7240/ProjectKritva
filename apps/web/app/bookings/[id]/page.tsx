@@ -6,9 +6,13 @@ import { useRequireAuth } from "@/hooks/use-require-auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
+  checkoutBookingPayment,
+  PaymentCancelledError,
+} from "@/lib/razorpay-checkout";
+import {
   formatEventDate,
   formatInr,
-  formatServiceSummary,
+  formatPackageSummary,
 } from "@/lib/booking-form";
 import { AppNav } from "@/components/layout/app-nav";
 import {
@@ -52,8 +56,8 @@ const STEPPER_STEPS = [
   "Released",
 ] as const;
 
-interface ServiceDetail {
-  service_id: string;
+interface PackageDetail {
+  package_id: string;
   name: string;
   quantity: number;
   price_at_booking: number;
@@ -88,7 +92,7 @@ interface BookingDetail {
   total_amount: number;
   notes: string | null;
   status: string;
-  service_details: ServiceDetail[];
+  package_details: PackageDetail[];
   counter_amount: number | null;
   counter_message: string | null;
   decline_reason: string | null;
@@ -542,18 +546,16 @@ export default function BookingDetailPage({
 
   const payMutation = useMutation({
     mutationFn: async () => {
-      const initRes = await apiClient.post("/v1/payments/initiate", {
-        booking_id: id,
-      });
-      if (initRes.error) throw new Error(initRes.error.message);
-      const captureRes = await apiClient.post("/v1/payments/simulate-capture", {
-        booking_id: id,
-      });
-      if (captureRes.error) throw new Error(captureRes.error.message);
+      await checkoutBookingPayment(id);
     },
     onSuccess: invalidate,
-    onError: (err) =>
-      setActionError(err instanceof Error ? err.message : "Payment failed"),
+    onError: (err) => {
+      if (err instanceof PaymentCancelledError) {
+        setActionError(null);
+        return;
+      }
+      setActionError(err instanceof Error ? err.message : "Payment failed");
+    },
   });
 
   const releaseMutation = useMutation({
@@ -661,9 +663,9 @@ export default function BookingDetailPage({
                   </h2>
                   <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                     <div>
-                      <dt className="font-sans text-xs text-mk-muted">Service</dt>
+                      <dt className="font-sans text-xs text-mk-muted">Package</dt>
                       <dd className="font-sans text-sm text-mk-ink">
-                        {formatServiceSummary(booking.service_details)}
+                        {formatPackageSummary(booking.package_details)}
                       </dd>
                     </div>
                     <div>

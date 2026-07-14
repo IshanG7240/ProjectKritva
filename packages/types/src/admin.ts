@@ -1,21 +1,128 @@
 import { z } from "zod";
-import { paisaSchema } from "./api.js";
+import { paisaSchema, ulidSchema } from "./api";
+import {
+  packageUnitSchema,
+  roleSchema,
+  userStatusSchema,
+  verificationStatusSchema,
+  vendorCategorySchema,
+} from "./enums";
 
 // ==========================================
 // 1. Vendor Verification Schema
 // ==========================================
-export const verifyVendorSchema = z.object({
-  approved: z.boolean(),
-  notes: z
-    .string()
-    .max(1000, "Notes cannot exceed 1000 characters")
-    .optional()
-    .nullable(),
-});
+export const verifyVendorSchema = z
+  .object({
+    verification_status: z.enum(["approved", "rejected"]),
+    verification_notes: z
+      .string()
+      .max(1000, "Notes cannot exceed 1000 characters")
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.verification_status !== "rejected" ||
+      (data.verification_notes?.trim().length ?? 0) > 0,
+    {
+      message: "verification_notes is required when rejecting a vendor",
+      path: ["verification_notes"],
+    },
+  );
 export type VerifyVendorInput = z.infer<typeof verifyVendorSchema>;
 
 // ==========================================
-// 2. Dispute Resolution Schema
+// 2. Admin vendor review payloads
+// ==========================================
+export const adminVendorPendingItemSchema = z.object({
+  id: ulidSchema,
+  user_id: ulidSchema,
+  business_name: z.string(),
+  slug: z.string(),
+  category: z.array(vendorCategorySchema),
+  city_id: z.string(),
+  description: z.string().nullable(),
+  verification_status: verificationStatusSchema,
+  verification_notes: z.string().nullable(),
+  submitted_at: z.string().datetime().nullable(),
+  package_count: z.number().int().nonnegative(),
+  portfolio_media_count: z.number().int().nonnegative(),
+  created_at: z.string().datetime(),
+});
+export type AdminVendorPendingItem = z.infer<typeof adminVendorPendingItemSchema>;
+
+export const adminVendorReviewPackageSchema = z.object({
+  id: ulidSchema,
+  name: z.string(),
+  price: paisaSchema,
+  unit: packageUnitSchema,
+  min_quantity: z.number().int().positive().nullable(),
+  inclusions: z.array(z.string()),
+});
+
+export const adminVendorReviewMediaSchema = z.object({
+  id: ulidSchema,
+  url: z.string(),
+  thumbnail_url: z.string().nullable(),
+  section: z.string(),
+  position: z.number().int().nonnegative(),
+});
+
+export const adminVendorReviewDetailSchema = z.object({
+  id: ulidSchema,
+  user_id: ulidSchema,
+  business_name: z.string(),
+  slug: z.string(),
+  category: z.array(vendorCategorySchema),
+  city_id: z.string(),
+  description: z.string().nullable(),
+  years_in_business: z.number().int().nullable(),
+  profile_photo_url: z.string().nullable(),
+  verification_status: verificationStatusSchema,
+  verification_notes: z.string().nullable(),
+  submitted_at: z.string().datetime().nullable(),
+  created_at: z.string().datetime(),
+  owner_email: z.string().email().nullable(),
+  packages: z.array(adminVendorReviewPackageSchema),
+  media: z.array(adminVendorReviewMediaSchema),
+});
+export type AdminVendorReviewDetail = z.infer<typeof adminVendorReviewDetailSchema>;
+
+// ==========================================
+// 3. User Management Schemas
+// ==========================================
+export const adminUserListItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  email: z.string().email().nullable(),
+  phone: z.string().nullable(),
+  role: roleSchema,
+  status: userStatusSchema,
+  suspended_until: z.string().datetime().nullable(),
+  created_at: z.string().datetime(),
+});
+export type AdminUserListItem = z.infer<typeof adminUserListItemSchema>;
+
+export const updateUserStatusSchema = z.object({
+  status: userStatusSchema,
+  suspended_until: z.string().datetime().nullable().optional(),
+  reason: z
+    .string()
+    .min(1, "Reason is required")
+    .max(500, "Reason cannot exceed 500 characters"),
+});
+export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;
+
+export const listUsersQuerySchema = z.object({
+  q: z.string().trim().min(1).optional(),
+  role: roleSchema.optional(),
+  status: userStatusSchema.optional(),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+  offset: z.coerce.number().int().nonnegative().default(0),
+});
+export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
+
+// ==========================================
+// 4. Dispute Resolution Schema
 // ==========================================
 export const resolveDisputeSchema = z
   .object({
@@ -39,14 +146,14 @@ export const resolveDisputeSchema = z
     {
       message: "At least one payout or refund amount must be specified for split resolutions",
       path: ["vendor_payout_amount"],
-    }
+    },
   );
 export type ResolveDisputeInput = z.infer<typeof resolveDisputeSchema>;
 
 // ==========================================
-// 3. Platform Configuration Schema
+// 5. Platform Configuration Schema
 // ==========================================
 export const updateConfigSchema = z.object({
-  value: z.unknown(), // Key-specific validation is performed in the application layer
+  value: z.unknown(),
 });
 export type UpdateConfigInput = z.infer<typeof updateConfigSchema>;

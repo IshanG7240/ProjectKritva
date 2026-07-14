@@ -8,18 +8,11 @@ import { HeroGallery, type VendorMediaItem } from "@/components/vendor/profile/H
 import { VendorHeader } from "@/components/vendor/profile/VendorHeader";
 import { PortfolioShowcase } from "@/components/vendor/profile/PortfolioShowcase";
 import { AboutSection } from "@/components/vendor/profile/AboutSection";
-import { ServicesTable } from "@/components/vendor/profile/ServicesTable";
+import { PublicPackagesList } from "@/components/vendor/profile/PackagesSection";
 import { VendorProfileSidebar } from "@/components/vendor/profile/VendorProfileSidebar";
 import { TestimonialsSection } from "@/components/vendor/profile/TestimonialsSection";
-
-interface Service {
-  id: string;
-  name: string;
-  description: string | null;
-  price_min: number;
-  price_max: number;
-  unit: string;
-}
+import { VendorRatingSection } from "@/components/vendor/profile/VendorRatingSection";
+import type { VendorPackage } from "@/lib/vendor-profile";
 
 interface VendorProfile {
   id: string;
@@ -34,7 +27,7 @@ interface VendorProfile {
   rating_count: number;
   booking_count: number;
   response_time_hours: number | null;
-  services: Service[];
+  packages: VendorPackage[];
   media: VendorMediaItem[];
 }
 
@@ -93,7 +86,12 @@ export default function VendorProfilePage({
           </div>
         }
         sidebar={<VendorProfileSidebar />}
-        bottom={<TestimonialsSection />}
+        bottom={
+          <>
+            <VendorRatingSection />
+            <TestimonialsSection />
+          </>
+        }
       />
     );
   }
@@ -109,7 +107,12 @@ export default function VendorProfilePage({
           </div>
         }
         sidebar={<VendorProfileSidebar />}
-        bottom={<TestimonialsSection />}
+        bottom={
+          <>
+            <VendorRatingSection />
+            <TestimonialsSection />
+          </>
+        }
       />
     );
   }
@@ -149,18 +152,29 @@ export default function VendorProfilePage({
             businessName={vendor.business_name}
             description={vendor.description}
           />
-          <ServicesTable services={vendor.services} />
-          <PortfolioShowcase media={portfolioMedia} />
+          <section className="space-y-3">
+            <h2 className="font-serif text-xl text-mk-ink">Packages &amp; Pricing</h2>
+            <PublicPackagesList packages={vendor.packages} />
+          </section>
+          <PortfolioShowcase media={portfolioMedia} vendorSlug={vendor.slug} />
         </div>
       }
       sidebar={
         <VendorProfileSidebar
           vendorId={vendor.id}
           vendorSlug={vendor.slug}
-          services={vendor.services}
+          packages={vendor.packages}
         />
       }
-      bottom={<TestimonialsSection />}
+      bottom={
+        <>
+          <VendorRatingSection
+            avgRating={vendor.avg_rating}
+            ratingCount={vendor.rating_count}
+          />
+          <TestimonialsSection />
+        </>
+      }
     />
   );
 }

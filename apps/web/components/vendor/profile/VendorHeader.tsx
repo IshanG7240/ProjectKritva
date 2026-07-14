@@ -7,14 +7,6 @@ import { VENDOR_CATEGORIES } from "@kritva/types/enums";
 import { InlineEditField } from "@/components/vendor/edit/InlineEditField";
 import { VENDOR_CITIES } from "@/components/vendor/VendorDirectoryFilters";
 
-const PLACEHOLDER_RATING_BREAKDOWN = [
-  { stars: 5, percent: 72 },
-  { stars: 4, percent: 18 },
-  { stars: 3, percent: 6 },
-  { stars: 2, percent: 2 },
-  { stars: 1, percent: 2 },
-] as const;
-
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -43,7 +35,6 @@ interface VendorHeaderProps {
   avgRating?: number | null;
   ratingCount?: number;
   avatarUrl?: string | null;
-  ratingBreakdown?: { stars: number; percent: number }[];
   showPlaceholderRating?: boolean;
   editable?: boolean;
   uploadingAvatar?: boolean;
@@ -63,7 +54,6 @@ export function VendorHeader({
   avgRating = null,
   ratingCount = 0,
   avatarUrl = null,
-  ratingBreakdown,
   showPlaceholderRating = false,
   editable = false,
   uploadingAvatar = false,
@@ -85,12 +75,6 @@ export function VendorHeader({
     yearsInBusiness != null && yearsInBusiness > 0
       ? `${yearsInBusiness}+ Years`
       : null;
-  const breakdown = hasRating
-    ? (ratingBreakdown ?? [])
-    : showPlaceholderRating
-      ? [...PLACEHOLDER_RATING_BREAKDOWN]
-      : [];
-
   const cityLabel = formatCityLabel(cityId);
   const displayLocation =
     location ??
@@ -289,7 +273,7 @@ export function VendorHeader({
 
         {showRating ? (
           <div
-            className={`w-full shrink-0 lg:w-44 xl:w-48 ${
+            className={`w-full shrink-0 lg:w-auto ${
               showPlaceholderRating && !hasRating ? "opacity-60" : ""
             }`}
           >
@@ -305,24 +289,6 @@ export function VendorHeader({
                 ({displayReviewCount} reviews)
               </span>
             </div>
-
-            {breakdown.length > 0 && (
-              <div className="mt-2.5 flex flex-col gap-1">
-                {breakdown.map(({ stars, percent }) => (
-                  <div key={stars} className="flex items-center gap-2">
-                    <span className="w-9 shrink-0 font-sans text-[10px] text-mk-muted">
-                      {stars} star
-                    </span>
-                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#EDE8DE]">
-                      <div
-                        className="h-full rounded-full bg-mk-navy"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         ) : null}
       </div>

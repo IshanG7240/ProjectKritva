@@ -22,7 +22,8 @@
     "clean": "rm -rf .turbo node_modules"
   },
   "dependencies": {
-    "@kritva/types": "workspace:*"
+    "@kritva/types": "workspace:*",
+    "razorpay": "^2.9.6"
   },
   "devDependencies": {
     "@kritva/eslint-config": "workspace:*",
