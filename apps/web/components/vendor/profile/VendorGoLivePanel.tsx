@@ -12,24 +12,24 @@ const STATUS_COPY: Record<
   draft: {
     title: "Profile in draft",
     description:
-      "Complete the checklist below, save your changes, then submit for admin review.",
+      "Complete the checklist below to appear on vendor discovery. Submit for review to earn the Kritva Verified badge.",
     tone: "amber",
   },
   pending_review: {
     title: "Submitted for review",
     description:
-      "Our team is reviewing your profile. You can still edit details while you wait.",
+      "You're visible on the marketplace. Our team is reviewing your profile for the Kritva Verified badge.",
     tone: "sky",
   },
   rejected: {
     title: "Changes requested",
     description:
-      "Update your profile based on the feedback below, save, then re-submit.",
+      "Update your profile based on the feedback below, save, then re-submit for the Kritva Verified badge.",
     tone: "rose",
   },
   approved: {
     title: "Profile live",
-    description: "Your business is visible on the marketplace.",
+    description: "Your business is visible on the marketplace with the Kritva Verified badge.",
     tone: "emerald",
   },
 };
@@ -46,6 +46,7 @@ const CHECKLIST_LABELS: Record<keyof VendorReadinessResponse["checks"], string> 
     category: "At least one category selected",
     packages: "At least one active package",
     portfolio: "At least five portfolio photos",
+    profile_photo: "Profile photo uploaded",
   };
 
 interface VendorGoLivePanelProps {
@@ -110,8 +111,14 @@ export function VendorGoLivePanel({
         {(verificationStatus === "draft" || verificationStatus === "rejected") && (
           <div className="rounded-xl border border-mk-border bg-[#FDFBF7] p-4">
             <p className="font-sans text-sm font-semibold text-mk-ink">
-              Go-live checklist
+              Discovery checklist
             </p>
+            {readiness?.complete ? (
+              <p className="mt-1 font-sans text-xs text-mk-muted">
+                Your profile is visible on vendor discovery. Submit below to
+                request the Kritva Verified badge.
+              </p>
+            ) : null}
 
             <ul className="mt-3 space-y-2">
               {(

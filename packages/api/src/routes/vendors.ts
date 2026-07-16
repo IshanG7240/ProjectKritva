@@ -20,6 +20,11 @@ import {
 } from "@kritva/types";
 import { dispatch as dispatchNotification } from "@kritva/notifications/dispatcher";
 import { appendAuditLog } from "../lib/audit.js";
+import {
+  isKritvaVerified,
+  isMockVendor,
+  vendorDiscoverableWhere,
+} from "../lib/vendor-discoverability.js";
 import { computeVendorReadiness } from "../lib/vendor-readiness.js";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
 
@@ -115,7 +120,8 @@ const DEFAULT_PAGE_SIZE = 12;
 
 /**
  * GET /v1/vendors
- * Public directory of approved vendors with search, filters, and pagination.
+ * Public directory of discoverable vendors (checklist-complete or approved)
+ * with search, filters, and pagination.
  * Price range is aggregated from active vendor_packages rows.
  */
 vendorsRouter.get("/", async (c) => {
@@ -146,7 +152,7 @@ vendorsRouter.get("/", async (c) => {
   const limit = query.limit;
   const offset = query.offset;
 
-  const whereConditions = [eq(vendors.verificationStatus, "approved")];
+  const whereConditions = [vendorDiscoverableWhere()];
 
   if (query.category) {
     whereConditions.push(sql`${query.category} = ANY(${vendors.category})`);
@@ -187,6 +193,7 @@ vendorsRouter.get("/", async (c) => {
       rating_count: vendors.ratingCount,
       booking_count: vendors.bookingCount,
       profile_photo_url: vendors.profilePhotoUrl,
+      verification_status: vendors.verificationStatus,
       cover_image: sql<string | null>`(
         SELECT ${vendorMedia.url} FROM ${vendorMedia}
         WHERE ${vendorMedia.vendorId} = ${vendors.id}
@@ -223,6 +230,7 @@ vendorsRouter.get("/", async (c) => {
       vendors.ratingCount,
       vendors.bookingCount,
       vendors.profilePhotoUrl,
+      vendors.verificationStatus,
     )
     .$dynamic();
 
@@ -257,6 +265,8 @@ vendorsRouter.get("/", async (c) => {
       price_max: unitsMixed && priceMin != null ? priceMin : priceMax,
       unit: (row.unit as PackageUnit | null) ?? null,
       units_mixed: unitsMixed,
+      is_verified: isKritvaVerified(row.verification_status),
+      is_mock: isMockVendor(row.slug),
     };
   });
 
@@ -1104,7 +1114,7 @@ vendorsRouter.delete("/me/media/:mediaId", supabaseAuth(), async (c) => {
 
 /**
  * GET /v1/vendors/:idOrSlug
- * Public profile for a single approved vendor including their active services.
+ * Public profile for a discoverable vendor (checklist-complete or approved).
  * Accepts either the vendor ULID or public slug.
  */
 vendorsRouter.get("/:idOrSlug", async (c) => {
@@ -1124,12 +1134,13 @@ vendorsRouter.get("/:idOrSlug", async (c) => {
       rating_count: vendors.ratingCount,
       booking_count: vendors.bookingCount,
       response_time_hours: vendors.responseTimeHours,
+      verification_status: vendors.verificationStatus,
     })
     .from(vendors)
     .where(
       and(
         or(eq(vendors.id, idOrSlug), eq(vendors.slug, idOrSlug)),
-        eq(vendors.verificationStatus, "approved"),
+        vendorDiscoverableWhere(),
       ),
     )
     .limit(1);
@@ -1198,6 +1209,8 @@ vendorsRouter.get("/:idOrSlug", async (c) => {
       vendor.response_time_hours != null
         ? Number(vendor.response_time_hours)
         : null,
+    is_verified: isKritvaVerified(vendor.verification_status),
+    is_mock: isMockVendor(vendor.slug),
     packages: packages.map((p) => mapPackageRow(p)),
     media: media.map((m) => mapMediaRow(m)),
   };

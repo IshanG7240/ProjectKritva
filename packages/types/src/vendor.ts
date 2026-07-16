@@ -195,6 +195,10 @@ export const vendorListItemSchema = z.object({
   profile_photo_url: z.string().nullable(),
   /** First banner/gallery photo, ordered by position; null when vendor has none uploaded. */
   cover_image: z.string().nullable(),
+  /** True when admin-approved; checklist-complete listings may appear without this. */
+  is_verified: z.boolean(),
+  /** True for seeded marketplace demo profiles. */
+  is_mock: z.boolean(),
 });
 export type VendorListItem = z.infer<typeof vendorListItemSchema>;
 
@@ -229,6 +233,7 @@ export const vendorReadinessChecksSchema = z.object({
   category: z.boolean(),
   packages: z.boolean(),
   portfolio: z.boolean(),
+  profile_photo: z.boolean(),
 });
 export type VendorReadinessChecks = z.infer<typeof vendorReadinessChecksSchema>;
 

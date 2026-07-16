@@ -27,6 +27,8 @@ interface VendorProfile {
   rating_count: number;
   booking_count: number;
   response_time_hours: number | null;
+  is_verified: boolean;
+  is_mock: boolean;
   packages: VendorPackage[];
   media: VendorMediaItem[];
 }
@@ -142,6 +144,8 @@ export default function VendorProfilePage({
               avgRating={vendor.avg_rating}
               ratingCount={vendor.rating_count}
               avatarUrl={vendor.profile_photo_url}
+              isVerified={vendor.is_verified}
+              isMock={vendor.is_mock}
             />
           </div>
         </div>

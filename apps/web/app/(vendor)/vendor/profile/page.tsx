@@ -215,7 +215,8 @@ function VendorProfileEditor() {
     );
   }
 
-  const canPreview = verificationStatus === "approved";
+  const canPreview =
+    verificationStatus === "approved" || readiness?.complete === true;
   const verificationNotes =
     saved?.verification_notes ?? draft.verification_notes ?? null;
   const bannerMedia = draft.media.filter(
@@ -287,6 +288,7 @@ function VendorProfileEditor() {
               avgRating={draft.avg_rating}
               ratingCount={draft.rating_count}
               avatarUrl={draft.profile_photo_url}
+              isVerified={verificationStatus === "approved"}
               showPlaceholderRating={
                 isPreviewMode &&
                 (draft.avg_rating == null || draft.rating_count === 0)

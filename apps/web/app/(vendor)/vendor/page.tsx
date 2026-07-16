@@ -636,15 +636,15 @@ export default function VendorDashboardPage() {
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="font-sans text-sm font-medium text-amber-950">
               {vendorStatus.verification_status === "pending_review"
-                ? "Your profile is under review"
+                ? "Your profile is under review for Kritva Verified"
                 : vendorStatus.verification_status === "rejected"
-                  ? "Your profile needs updates before going live"
-                  : "Finish your vendor profile to start receiving inquiries"}
+                  ? "Your profile needs updates before re-submitting"
+                  : "Finish your vendor profile to appear on discovery"}
             </p>
             <p className="mt-1 font-sans text-sm text-amber-900/90">
               {vendorStatus.verification_status === "pending_review"
-                ? "You will appear in search once an admin approves your listing."
-                : "Complete your listing and submit it for review."}
+                ? "You're already visible on the marketplace. Approval adds the Kritva Verified badge."
+                : "Complete the go-live checklist to appear on vendor discovery."}
             </p>
             <Link
               href="/vendor/profile"

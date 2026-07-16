@@ -218,9 +218,9 @@ async function main() {
       await db.insert(vendorMedia).values({
         id: generateUlid(),
         vendorId,
-        url: `https://images.unsplash.com/photo-${i}-${m}`,
-        thumbnailUrl: `https://images.unsplash.com/photo-${i}-${m}-thumb`,
-        detailUrl: `https://images.unsplash.com/photo-${i}-${m}-detail`,
+        url: `https://r2.kritva.in/seed/vendor-${i}/photo-${m}.jpg`,
+        thumbnailUrl: `https://r2.kritva.in/seed/vendor-${i}/photo-${m}-thumb.jpg`,
+        detailUrl: `https://r2.kritva.in/seed/vendor-${i}/photo-${m}-detail.jpg`,
         type: "image",
         position: m,
         altText: `${businessName} Portfolio Item ${m}`,
@@ -305,7 +305,7 @@ async function main() {
   await db.insert(vendorMedia).values({
     id: generateUlid(),
     vendorId: draftVendorId,
-    url: "https://images.unsplash.com/photo-draft-qa-1",
+    url: "https://r2.kritva.in/seed/vendor-draft-qa/photo-1.jpg",
     type: "image",
     section: "portfolio",
     position: 1,

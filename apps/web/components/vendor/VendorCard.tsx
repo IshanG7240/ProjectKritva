@@ -8,7 +8,6 @@
  */
 
 import Link from "next/link";
-import Image from "next/image";
 import { formatPackagePriceLabel } from "@/lib/vendor-profile";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -18,53 +17,15 @@ function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-const CATEGORY_COVER_IMAGES: Record<string, string> = {
-  decor:
-    "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=640&q=80",
-  catering:
-    "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=640&q=80",
-  photography:
-    "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=640&q=80",
-  venue:
-    "https://images.unsplash.com/photo-1519225421980-715f02196665?auto=format&fit=crop&w=640&q=80",
-  other:
-    "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=640&q=80",
-};
-
-const SAMPLE_COVER_IMAGES = [
-  ...Object.values(CATEGORY_COVER_IMAGES),
-  "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=640&q=80",
-  "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=640&q=80",
-  "https://images.unsplash.com/photo-1522673607200-83642ebe690e?auto=format&fit=crop&w=640&q=80",
-] as const;
-
-function pickSampleCoverImage(id: string, category: string[]): string {
-  const primary = category[0];
-  if (primary && CATEGORY_COVER_IMAGES[primary]) {
-    return CATEGORY_COVER_IMAGES[primary];
-  }
-
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash + id.charCodeAt(i)) % SAMPLE_COVER_IMAGES.length;
-  }
-  return SAMPLE_COVER_IMAGES[hash]!;
-}
-
-function isUnsplashUrl(url: string): boolean {
+function resolveCoverImage(cover_image?: string | null): string | null {
+  const url = cover_image?.trim();
+  if (!url) return null;
   try {
-    return new URL(url).hostname === "images.unsplash.com";
+    if (new URL(url).hostname === "images.unsplash.com") return null;
   } catch {
-    return false;
+    return null;
   }
-}
-
-function resolveCoverImage(
-  id: string,
-  category: string[],
-  cover_image?: string | null,
-): string {
-  return cover_image?.trim() || pickSampleCoverImage(id, category);
+  return url;
 }
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -82,10 +43,14 @@ export interface VendorCardProps {
   price_max: number | null;
   unit: string | null;
   units_mixed?: boolean;
-  /** Cover image URL. Falls back to a pattern placeholder when absent. */
+  /** Cover image URL. Neutral placeholder when absent. */
   cover_image?: string | null;
   /** Vendor profile photo shown as avatar on the card. */
   profile_photo_url?: string | null;
+  /** Admin-approved Kritva Verified badge; omitted for checklist-only listings. */
+  is_verified?: boolean;
+  /** Seeded marketplace demo profile. */
+  is_mock?: boolean;
 }
 
 // ── skeleton ──────────────────────────────────────────────────────────────────
@@ -134,7 +99,6 @@ export function VendorCardSkeletonGrid({ count = SKELETON_COUNT }: { count?: num
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function VendorCard({
-  id,
   business_name,
   slug,
   category,
@@ -148,10 +112,15 @@ export function VendorCard({
   units_mixed = false,
   cover_image,
   profile_photo_url,
+  is_verified = false,
+  is_mock = false,
 }: VendorCardProps) {
-  const rating = avg_rating != null ? Number(avg_rating).toFixed(1) : null;
-  const imageSrc = resolveCoverImage(id, category, cover_image);
-  const avatarSrc = profile_photo_url?.trim() || null;
+  const rating =
+    rating_count > 0 && avg_rating != null
+      ? Number(avg_rating).toFixed(1)
+      : null;
+  const imageSrc = resolveCoverImage(cover_image);
+  const avatarSrc = resolveCoverImage(profile_photo_url);
   const priceLabel = formatPackagePriceLabel({
     price_min,
     price_max,
@@ -172,68 +141,88 @@ export function VendorCard({
     >
       {/* ── Cover image ──────────────────────────────────────────────────── */}
       <div className="relative h-[180px] w-full overflow-hidden bg-[#EDE8DE]">
-        <Image
-          src={imageSrc}
-          alt={`${business_name} portfolio cover`}
-          fill
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          sizes="320px"
-        />
+        {imageSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageSrc}
+            alt={`${business_name} portfolio cover`}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : null}
 
         {avatarSrc && (
           <div className="absolute bottom-3 left-3 h-14 w-14 overflow-hidden rounded-full border-[3px] border-white bg-[#EDE8DE] shadow-md">
-            <div className="relative h-full w-full">
-              {isUnsplashUrl(avatarSrc) ? (
-                <Image
-                  src={avatarSrc}
-                  alt={`${business_name} profile`}
-                  fill
-                  className="object-cover"
-                  sizes="56px"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={avatarSrc}
-                  alt={`${business_name} profile`}
-                  className="h-full w-full object-cover"
-                />
-              )}
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={avatarSrc}
+              alt={`${business_name} profile`}
+              className="h-full w-full object-cover"
+            />
           </div>
         )}
 
-        {/* Verified badge — top right */}
-        <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 shadow-sm backdrop-blur-sm">
-          {/* Shield icon */}
-          <svg
-            width="13"
-            height="14"
-            viewBox="0 0 13 14"
-            fill="none"
-            aria-hidden="true"
+        {is_mock ? (
+          <div
+            className="absolute left-3 top-3 flex items-center gap-1.5 border border-dashed border-[#1D3557]/40 bg-[#FDFBF7]/95 px-2 py-1 shadow-sm backdrop-blur-sm"
+            title="Demo profile for product walkthroughs"
           >
-            <path
-              d="M6.5 0.75L1 3.25V7C1 10.2 3.44 13.2 6.5 14C9.56 13.2 12 10.2 12 7V3.25L6.5 0.75Z"
-              fill="#1D3557"
-            />
-            <path
-              d="M4.5 7L6 8.5L9 5.5"
-              stroke="white"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <div className="leading-tight">
-            <p className="text-[9px] font-semibold text-[#1C1A16]">
-              Kritva Verified
-            </p>
-            <p className="text-[8px] font-medium uppercase tracking-widest text-[#7A7060]">
-              Escrow Protected
-            </p>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M2 2.5H10V4.2L7.8 7.2V10H4.2V7.2L2 4.2V2.5Z"
+                stroke="#1D3557"
+                strokeWidth="1.1"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M4.5 2.5V1.5H7.5V2.5"
+                stroke="#1D3557"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span className="font-sans text-[9px] font-semibold uppercase tracking-[0.14em] text-[#1D3557]">
+              Demo
+            </span>
           </div>
-        </div>
+        ) : null}
+
+        {is_verified ? (
+          <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 shadow-sm backdrop-blur-sm">
+            <svg
+              width="13"
+              height="14"
+              viewBox="0 0 13 14"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M6.5 0.75L1 3.25V7C1 10.2 3.44 13.2 6.5 14C9.56 13.2 12 10.2 12 7V3.25L6.5 0.75Z"
+                fill="#1D3557"
+              />
+              <path
+                d="M4.5 7L6 8.5L9 5.5"
+                stroke="white"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <div className="leading-tight">
+              <p className="text-[9px] font-semibold text-[#1C1A16]">
+                Kritva Verified
+              </p>
+              <p className="text-[8px] font-medium uppercase tracking-widest text-[#7A7060]">
+                Escrow Protected
+              </p>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* ── Card body ────────────────────────────────────────────────────── */}
@@ -243,26 +232,31 @@ export function VendorCard({
           <h3 className="font-sans text-[15px] font-semibold leading-snug text-[#1C1A16] line-clamp-1">
             {business_name}
           </h3>
-          {rating != null && (
-            <div className="flex shrink-0 items-center gap-1">
-              {/* Star */}
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 13 13"
-                fill="#F59E0B"
-                aria-hidden="true"
-              >
-                <path d="M6.5 0.5L8.09 4.26L12.18 4.64L9.14 7.24L10.18 11.24L6.5 9L2.82 11.24L3.86 7.24L0.82 4.64L4.91 4.26L6.5 0.5Z" />
-              </svg>
-              <span className="font-sans text-[13px] font-medium text-[#1C1A16]">
-                {rating}
-              </span>
+          <div className="flex shrink-0 items-center gap-1">
+            {rating != null ? (
+              <>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 13 13"
+                  fill="#F59E0B"
+                  aria-hidden="true"
+                >
+                  <path d="M6.5 0.5L8.09 4.26L12.18 4.64L9.14 7.24L10.18 11.24L6.5 9L2.82 11.24L3.86 7.24L0.82 4.64L4.91 4.26L6.5 0.5Z" />
+                </svg>
+                <span className="font-sans text-[13px] font-medium text-[#1C1A16]">
+                  {rating}
+                </span>
+                <span className="font-sans text-[12px] text-[#7A7060]">
+                  ({rating_count} reviews)
+                </span>
+              </>
+            ) : (
               <span className="font-sans text-[12px] text-[#7A7060]">
-                ({rating_count} reviews)
+                Unrated
               </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Category pills */}

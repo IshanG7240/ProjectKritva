@@ -1,21 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Loader2, Play, Trash2, Upload } from "lucide-react";
 
 import type { VendorMediaItem } from "./HeroGallery";
 
 const PREVIEW_LIMIT = 6;
-
-function isUnsplashUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname === "images.unsplash.com";
-  } catch {
-    return false;
-  }
-}
 
 interface PortfolioShowcaseProps {
   media?: VendorMediaItem[];
@@ -126,22 +117,12 @@ export function PortfolioShowcase({
               key={item.id}
               className="group relative aspect-[4/3] overflow-hidden rounded-xl"
             >
-              {isUnsplashUrl(item.src) ? (
-                <Image
-                  src={item.src}
-                  alt={item.alt}
-                  fill
-                  className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                  sizes="(max-width: 640px) 100vw, 33vw"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.src}
-                  alt={item.alt}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                />
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.src}
+                alt={item.alt}
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              />
 
               {item.isVideo && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">

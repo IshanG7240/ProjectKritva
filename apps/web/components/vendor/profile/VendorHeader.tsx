@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
-import { BadgeCheck, Calendar, Loader2, MapPin, Shield, Star, Upload } from "lucide-react";
+import { BadgeCheck, Calendar, FlaskConical, Loader2, MapPin, Shield, Star, Upload } from "lucide-react";
 import { VENDOR_CATEGORIES } from "@kritva/types/enums";
 import { InlineEditField } from "@/components/vendor/edit/InlineEditField";
 import { VENDOR_CITIES } from "@/components/vendor/VendorDirectoryFilters";
@@ -18,14 +17,6 @@ function formatCityLabel(cityId: string): string {
     .join(" ");
 }
 
-function isUnsplashUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname === "images.unsplash.com";
-  } catch {
-    return false;
-  }
-}
-
 interface VendorHeaderProps {
   businessName: string;
   categories?: string[];
@@ -36,6 +27,10 @@ interface VendorHeaderProps {
   ratingCount?: number;
   avatarUrl?: string | null;
   showPlaceholderRating?: boolean;
+  /** Admin-approved badge; false for checklist-complete but unverified listings. */
+  isVerified?: boolean;
+  /** Seeded marketplace demo profile. */
+  isMock?: boolean;
   editable?: boolean;
   uploadingAvatar?: boolean;
   onAvatarUpload?: (file: File) => Promise<void>;
@@ -55,6 +50,8 @@ export function VendorHeader({
   ratingCount = 0,
   avatarUrl = null,
   showPlaceholderRating = false,
+  isVerified = false,
+  isMock = false,
   editable = false,
   uploadingAvatar = false,
   onAvatarUpload,
@@ -111,22 +108,12 @@ export function VendorHeader({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-white bg-[#EDE8DE] shadow-sm sm:h-24 sm:w-24">
               {avatarUrl ? (
-                isUnsplashUrl(avatarUrl) ? (
-                  <Image
-                    src={avatarUrl}
-                    alt={`${businessName} profile`}
-                    fill
-                    className="object-cover"
-                    sizes="96px"
-                  />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={avatarUrl}
-                    alt={`${businessName} profile`}
-                    className="h-full w-full object-cover"
-                  />
-                )
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt={`${businessName} profile`}
+                  className="h-full w-full object-cover"
+                />
               ) : null}
               {editable && onAvatarUpload && (
                 <>
@@ -154,9 +141,11 @@ export function VendorHeader({
                   </button>
                 </>
               )}
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-kritva-blue text-white">
-                <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2.5} />
-              </span>
+              {isVerified ? (
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#FDFBF7] bg-kritva-blue text-white">
+                  <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </span>
+              ) : null}
             </div>
 
             <div className="flex min-w-0 flex-col gap-2.5">
@@ -178,17 +167,35 @@ export function VendorHeader({
                     {businessName}
                   </h1>
                 )}
-                <div className="flex items-center gap-1.5 rounded-full border border-mk-border bg-white px-2.5 py-1 shadow-sm">
-                  <Shield className="h-3.5 w-3.5 text-mk-navy" strokeWidth={2} />
-                  <div className="leading-tight">
-                    <p className="font-sans text-[10px] font-semibold text-mk-ink">
-                      Kritva Verified
-                    </p>
-                    <p className="font-sans text-[8px] font-medium uppercase tracking-widest text-mk-muted">
-                      Escrow Protected
-                    </p>
+                {isMock ? (
+                  <div
+                    className="flex items-center gap-1.5 border border-dashed border-mk-navy/40 bg-white px-2.5 py-1 shadow-sm"
+                    title="Demo profile for product walkthroughs"
+                  >
+                    <FlaskConical className="h-3.5 w-3.5 text-mk-navy" strokeWidth={2} />
+                    <div className="leading-tight">
+                      <p className="font-sans text-[10px] font-semibold text-mk-ink">
+                        Demo profile
+                      </p>
+                      <p className="font-sans text-[8px] font-medium uppercase tracking-widest text-mk-muted">
+                        Not a live vendor
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : null}
+                {isVerified ? (
+                  <div className="flex items-center gap-1.5 rounded-full border border-mk-border bg-white px-2.5 py-1 shadow-sm">
+                    <Shield className="h-3.5 w-3.5 text-mk-navy" strokeWidth={2} />
+                    <div className="leading-tight">
+                      <p className="font-sans text-[10px] font-semibold text-mk-ink">
+                        Kritva Verified
+                      </p>
+                      <p className="font-sans text-[8px] font-medium uppercase tracking-widest text-mk-muted">
+                        Escrow Protected
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {editable && onCategoriesChange ? (

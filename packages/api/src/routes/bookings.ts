@@ -24,6 +24,7 @@ import {
 } from "@kritva/db";
 import type { BookingPackageDetail, PackageUnit } from "@kritva/types";
 import { dispatch as dispatchNotification } from "@kritva/notifications/dispatcher";
+import { vendorDiscoverableWhere } from "../lib/vendor-discoverability.js";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -162,28 +163,34 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
       verificationStatus: vendors.verificationStatus,
     })
     .from(vendors)
-    .where(eq(vendors.id, vendor_id))
+    .where(and(eq(vendors.id, vendor_id), vendorDiscoverableWhere()))
     .limit(1);
 
   if (!vendor) {
-    return c.json(
-      {
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Vendor '${vendor_id}' was not found.`,
-        },
-      },
-      404,
-    );
-  }
+    const [existing] = await db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(eq(vendors.id, vendor_id))
+      .limit(1);
 
-  if (vendor.verificationStatus !== "approved") {
+    if (!existing) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "NOT_FOUND",
+            message: `Vendor '${vendor_id}' was not found.`,
+          },
+        },
+        404,
+      );
+    }
+
     return c.json(
       {
         data: null,
         error: {
-          code: "VENDOR_NOT_APPROVED",
+          code: "VENDOR_NOT_LISTED",
           message: "This vendor is not accepting inquiries.",
         },
       },

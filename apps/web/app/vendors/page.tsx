@@ -198,6 +198,8 @@ export default function VendorsPage() {
                   units_mixed={vendor.units_mixed}
                   profile_photo_url={vendor.profile_photo_url}
                   cover_image={vendor.cover_image}
+                  is_verified={vendor.is_verified}
+                  is_mock={vendor.is_mock}
                 />
               ))}
             </div>

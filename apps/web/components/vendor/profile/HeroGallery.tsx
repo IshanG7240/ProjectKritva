@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import { Loader2, Trash2, Upload } from "lucide-react";
 
 export interface VendorMediaItem {
@@ -28,14 +27,6 @@ interface GalleryCell {
 
 const BANNER_GRID_HEIGHT = "h-[280px] md:h-[400px]";
 export const MAX_BANNER_PHOTOS = 5;
-
-function isUnsplashUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname === "images.unsplash.com";
-  } catch {
-    return false;
-  }
-}
 
 function getGalleryLayout(count: number): GalleryCell[] {
   switch (count) {
@@ -79,29 +70,12 @@ function getGalleryLayout(count: number): GalleryCell[] {
 function GalleryImage({
   src,
   alt,
-  priority,
-  sizes,
   className,
 }: {
   src: string;
   alt: string;
-  priority?: boolean;
-  sizes: string;
   className?: string;
 }) {
-  if (isUnsplashUrl(src)) {
-    return (
-      <Image
-        src={src}
-        alt={alt}
-        fill
-        priority={priority}
-        className={className ?? "object-cover"}
-        sizes={sizes}
-      />
-    );
-  }
-
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt} className={`h-full w-full ${className ?? "object-cover"}`} />
@@ -213,16 +187,7 @@ export function HeroGallery({
                     gridRow: `span ${cell.rowSpan}`,
                   }}
                 >
-                  <GalleryImage
-                    src={src}
-                    alt={alt}
-                    priority={index === 0}
-                    sizes={
-                      cell.colSpan >= 2
-                        ? "(max-width: 768px) 100vw, 720px"
-                        : "(max-width: 768px) 50vw, 180px"
-                    }
-                  />
+                  <GalleryImage src={src} alt={alt} />
                   {renderRemoveButton(item.id)}
                 </div>
               );

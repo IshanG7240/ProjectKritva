@@ -7,6 +7,7 @@ export type MarketingPage = {
   title: string;
   description: string;
   sections: MarketingPageSection[];
+  comingSoon?: boolean;
 };
 
 export const MARKETING_PAGES = {
@@ -78,84 +79,26 @@ export const MARKETING_PAGES = {
   terms: {
     title: "Terms of service",
     description: "Terms governing use of the Kritva platform.",
-    sections: [
-      {
-        paragraphs: [
-          "By using Kritva you agree to book through the platform, pay via approved escrow flows, and provide accurate event details. Vendors agree to honour confirmed bookings and maintain disclosed pricing.",
-        ],
-      },
-      {
-        heading: "Bookings & payments",
-        paragraphs: [
-          "Quotes may be accepted, declined, or countered before a booking is confirmed.",
-          "Customer funds are held in escrow until release conditions are met.",
-          "Cancellations follow the policy shown at checkout for each booking.",
-        ],
-      },
-      {
-        heading: "Contact",
-        paragraphs: ["Questions about these terms: legal@kritva.in"],
-      },
-    ],
+    comingSoon: true,
+    sections: [],
   },
   privacy: {
     title: "Privacy policy",
     description: "How Kritva collects, uses, and protects your data.",
-    sections: [
-      {
-        paragraphs: [
-          "We collect account details, booking information, and payment metadata needed to operate the platform. We do not sell personal data.",
-        ],
-      },
-      {
-        heading: "Data use",
-        paragraphs: [
-          "To authenticate users and process bookings",
-          "To send transactional notifications about your events",
-          "To comply with legal and regulatory requirements",
-        ],
-      },
-      {
-        heading: "Your choices",
-        paragraphs: [
-          "You may request access or deletion of your account data by emailing privacy@kritva.in.",
-        ],
-      },
-    ],
+    comingSoon: true,
+    sections: [],
   },
   "escrow-policy": {
     title: "Escrow policy",
     description: "How Kritva holds and releases event payments.",
-    sections: [
-      {
-        paragraphs: [
-          "Customer payments are collected into regulated escrow before work begins. Funds are released to vendors only after agreed milestones — for example, deposit on confirmation and balance after event completion.",
-        ],
-      },
-      {
-        heading: "Disputes",
-        paragraphs: [
-          "If a booking dispute is raised, release may pause while Kritva reviews evidence from both parties. Our team aims to resolve escrow holds within five business days.",
-        ],
-      },
-    ],
+    comingSoon: true,
+    sections: [],
   },
   grievance: {
     title: "Grievance redressal",
     description: "How to raise a complaint about Kritva or a vendor.",
-    sections: [
-      {
-        paragraphs: [
-          "Email grievance@kritva.in with your booking reference, a description of the issue, and any supporting documents. We acknowledge complaints within 48 hours.",
-        ],
-      },
-      {
-        heading: "Escalation",
-        paragraphs: [
-          "If you are unsatisfied with the initial response, reply to your ticket asking for escalation. A senior operations lead will review within seven business days.",
-        ],
-      },
-    ],
+    comingSoon: true,
+    sections: [],
   },
   contact: {
     title: "Contact",
