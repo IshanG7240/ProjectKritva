@@ -49,6 +49,11 @@ export const vendors = pgTable(
     description: text("description"),
     yearsInBusiness: integer("years_in_business"),
     profilePhotoUrl: text("profile_photo_url"),
+    locationName: varchar("location_name", { length: 200 }),
+    locationAddress: text("location_address"),
+    locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
+    locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
+    locationMapsUrl: text("location_maps_url"),
     avgRating: numeric("avg_rating", { precision: 3, scale: 2 })
       .notNull()
       .default("0"),

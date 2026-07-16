@@ -8,6 +8,7 @@ import { HeroGallery, type VendorMediaItem } from "@/components/vendor/profile/H
 import { VendorHeader } from "@/components/vendor/profile/VendorHeader";
 import { PortfolioShowcase } from "@/components/vendor/profile/PortfolioShowcase";
 import { AboutSection } from "@/components/vendor/profile/AboutSection";
+import { LocationSection } from "@/components/vendor/profile/LocationSection";
 import { PublicPackagesList } from "@/components/vendor/profile/PackagesSection";
 import { VendorProfileSidebar } from "@/components/vendor/profile/VendorProfileSidebar";
 import { TestimonialsSection } from "@/components/vendor/profile/TestimonialsSection";
@@ -23,6 +24,11 @@ interface VendorProfile {
   description: string | null;
   years_in_business: number | null;
   profile_photo_url: string | null;
+  location_name: string | null;
+  location_address: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_maps_url: string | null;
   avg_rating: number | null;
   rating_count: number;
   booking_count: number;
@@ -43,7 +49,14 @@ async function fetchVendor(slug: string): Promise<VendorProfile> {
   return res.data!.vendor;
 }
 
-function formatVendorLocation(cityId: string): string {
+function formatVendorLocation(
+  cityId: string,
+  locationName?: string | null,
+  locationAddress?: string | null,
+): string {
+  const place = locationName?.trim() || locationAddress?.trim();
+  if (place) return place;
+
   const cityLabel = cityId
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -139,7 +152,11 @@ export default function VendorProfilePage({
               businessName={vendor.business_name}
               categories={vendor.category}
               cityId={vendor.city_id}
-              location={formatVendorLocation(vendor.city_id)}
+              location={formatVendorLocation(
+                vendor.city_id,
+                vendor.location_name,
+                vendor.location_address,
+              )}
               yearsInBusiness={vendor.years_in_business}
               avgRating={vendor.avg_rating}
               ratingCount={vendor.rating_count}
@@ -155,6 +172,15 @@ export default function VendorProfilePage({
           <AboutSection
             businessName={vendor.business_name}
             description={vendor.description}
+          />
+          <LocationSection
+            location={{
+              location_name: vendor.location_name ?? null,
+              location_address: vendor.location_address ?? null,
+              location_lat: vendor.location_lat ?? null,
+              location_lng: vendor.location_lng ?? null,
+              location_maps_url: vendor.location_maps_url ?? null,
+            }}
           />
           <section className="space-y-3">
             <h2 className="font-serif text-xl text-mk-ink">Packages &amp; Pricing</h2>

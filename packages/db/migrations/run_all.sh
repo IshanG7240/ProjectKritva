@@ -26,6 +26,7 @@ MIGRATIONS=(
   "014_storage_policies.sql"
   "015_vendor_draft_status.sql"
   "016_vendor_packages.sql"
+  "017_vendor_location.sql"
 )
 
 echo "Running ${#MIGRATIONS[@]} migrations..."

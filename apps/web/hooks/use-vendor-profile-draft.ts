@@ -53,7 +53,15 @@ function isPackageShapedDraft(value: unknown): value is VendorProfileDraft {
 async function fetchMyVendorProfile(): Promise<VendorProfile> {
   const res = await apiClient.get<{ vendor: VendorProfile }>("/v1/vendors/me");
   if (res.error) throw new Error(res.error.message);
-  return res.data!.vendor;
+  const vendor = res.data!.vendor;
+  return {
+    ...vendor,
+    location_name: vendor.location_name ?? null,
+    location_address: vendor.location_address ?? null,
+    location_lat: vendor.location_lat ?? null,
+    location_lng: vendor.location_lng ?? null,
+    location_maps_url: vendor.location_maps_url ?? null,
+  };
 }
 
 function packagesEqual(a: VendorPackage, b: VendorPackage): boolean {
@@ -145,6 +153,11 @@ export function useVendorProfileDraft() {
           | "description"
           | "years_in_business"
           | "profile_photo_url"
+          | "location_name"
+          | "location_address"
+          | "location_lat"
+          | "location_lng"
+          | "location_maps_url"
         >
       >,
     ) => {
@@ -302,6 +315,25 @@ export function useVendorProfileDraft() {
         (draft.profile_photo_url ?? null) !== (saved.profile_photo_url ?? null)
       ) {
         profilePatch.profile_photo_url = draft.profile_photo_url ?? null;
+      }
+      if ((draft.location_name ?? null) !== (saved.location_name ?? null)) {
+        profilePatch.location_name = draft.location_name ?? null;
+      }
+      if (
+        (draft.location_address ?? null) !== (saved.location_address ?? null)
+      ) {
+        profilePatch.location_address = draft.location_address ?? null;
+      }
+      if ((draft.location_lat ?? null) !== (saved.location_lat ?? null)) {
+        profilePatch.location_lat = draft.location_lat ?? null;
+      }
+      if ((draft.location_lng ?? null) !== (saved.location_lng ?? null)) {
+        profilePatch.location_lng = draft.location_lng ?? null;
+      }
+      if (
+        (draft.location_maps_url ?? null) !== (saved.location_maps_url ?? null)
+      ) {
+        profilePatch.location_maps_url = draft.location_maps_url ?? null;
       }
 
       if (Object.keys(profilePatch).length > 0) {

@@ -31,6 +31,11 @@ export interface VendorProfile {
   description: string | null;
   years_in_business: number | null;
   profile_photo_url: string | null;
+  location_name: string | null;
+  location_address: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_maps_url: string | null;
   avg_rating: number | null;
   rating_count: number;
   booking_count: number;

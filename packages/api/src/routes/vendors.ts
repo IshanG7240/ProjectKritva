@@ -51,6 +51,24 @@ async function resolveVendorForUser(userId: string) {
   return vendor ?? null;
 }
 
+function mapLocationFields(row: {
+  location_name: string | null;
+  location_address: string | null;
+  location_lat: string | number | null;
+  location_lng: string | number | null;
+  location_maps_url: string | null;
+}) {
+  return {
+    location_name: row.location_name ?? null,
+    location_address: row.location_address ?? null,
+    location_lat:
+      row.location_lat != null ? Number(row.location_lat) : null,
+    location_lng:
+      row.location_lng != null ? Number(row.location_lng) : null,
+    location_maps_url: row.location_maps_url ?? null,
+  };
+}
+
 function mapPackageRow(p: {
   id: string;
   name: string;
@@ -489,6 +507,11 @@ vendorsRouter.get("/me", supabaseAuth(), async (c) => {
       description: vendors.description,
       years_in_business: vendors.yearsInBusiness,
       profile_photo_url: vendors.profilePhotoUrl,
+      location_name: vendors.locationName,
+      location_address: vendors.locationAddress,
+      location_lat: vendors.locationLat,
+      location_lng: vendors.locationLng,
+      location_maps_url: vendors.locationMapsUrl,
       avg_rating: vendors.avgRating,
       rating_count: vendors.ratingCount,
       booking_count: vendors.bookingCount,
@@ -559,6 +582,7 @@ vendorsRouter.get("/me", supabaseAuth(), async (c) => {
           description: vendor.description ?? null,
           years_in_business: vendor.years_in_business ?? null,
           profile_photo_url: vendor.profile_photo_url ?? null,
+          ...mapLocationFields(vendor),
           avg_rating: vendor.avg_rating,
           rating_count: vendor.rating_count,
           booking_count: vendor.booking_count,
@@ -647,6 +671,27 @@ vendorsRouter.patch("/me", supabaseAuth(), async (c) => {
       ...(data.profile_photo_url !== undefined
         ? { profilePhotoUrl: data.profile_photo_url }
         : {}),
+      ...(data.location_name !== undefined
+        ? { locationName: data.location_name }
+        : {}),
+      ...(data.location_address !== undefined
+        ? { locationAddress: data.location_address }
+        : {}),
+      ...(data.location_lat !== undefined
+        ? {
+            locationLat:
+              data.location_lat != null ? String(data.location_lat) : null,
+          }
+        : {}),
+      ...(data.location_lng !== undefined
+        ? {
+            locationLng:
+              data.location_lng != null ? String(data.location_lng) : null,
+          }
+        : {}),
+      ...(data.location_maps_url !== undefined
+        ? { locationMapsUrl: data.location_maps_url }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(vendors.id, vendor.id))
@@ -658,6 +703,11 @@ vendorsRouter.patch("/me", supabaseAuth(), async (c) => {
       city_id: vendors.cityId,
       description: vendors.description,
       years_in_business: vendors.yearsInBusiness,
+      location_name: vendors.locationName,
+      location_address: vendors.locationAddress,
+      location_lat: vendors.locationLat,
+      location_lng: vendors.locationLng,
+      location_maps_url: vendors.locationMapsUrl,
     });
 
   return c.json(
@@ -671,6 +721,7 @@ vendorsRouter.patch("/me", supabaseAuth(), async (c) => {
           city_id: updated!.city_id,
           description: updated!.description ?? null,
           years_in_business: updated!.years_in_business ?? null,
+          ...mapLocationFields(updated!),
         },
       },
       error: null,
@@ -1130,6 +1181,11 @@ vendorsRouter.get("/:idOrSlug", async (c) => {
       description: vendors.description,
       years_in_business: vendors.yearsInBusiness,
       profile_photo_url: vendors.profilePhotoUrl,
+      location_name: vendors.locationName,
+      location_address: vendors.locationAddress,
+      location_lat: vendors.locationLat,
+      location_lng: vendors.locationLng,
+      location_maps_url: vendors.locationMapsUrl,
       avg_rating: vendors.avgRating,
       rating_count: vendors.ratingCount,
       booking_count: vendors.bookingCount,
@@ -1202,6 +1258,7 @@ vendorsRouter.get("/:idOrSlug", async (c) => {
     description: vendor.description ?? null,
     years_in_business: vendor.years_in_business ?? null,
     profile_photo_url: vendor.profile_photo_url ?? null,
+    ...mapLocationFields(vendor),
     avg_rating: vendor.avg_rating,
     rating_count: vendor.rating_count,
     booking_count: vendor.booking_count,

@@ -13,6 +13,7 @@ import { VendorGoLivePanel } from "@/components/vendor/profile/VendorGoLivePanel
 import { HeroGallery, MAX_BANNER_PHOTOS } from "@/components/vendor/profile/HeroGallery";
 import { VendorHeader } from "@/components/vendor/profile/VendorHeader";
 import { AboutSection } from "@/components/vendor/profile/AboutSection";
+import { LocationSection } from "@/components/vendor/profile/LocationSection";
 import { PackagesSection } from "@/components/vendor/profile/PackagesSection";
 import { PortfolioShowcase } from "@/components/vendor/profile/PortfolioShowcase";
 import { VendorProfileSidebar } from "@/components/vendor/profile/VendorProfileSidebar";
@@ -317,6 +318,17 @@ function VendorProfileEditor() {
             onDescriptionChange={(description) =>
               updateProfile({ description })
             }
+          />
+          <LocationSection
+            location={{
+              location_name: draft.location_name ?? null,
+              location_address: draft.location_address ?? null,
+              location_lat: draft.location_lat ?? null,
+              location_lng: draft.location_lng ?? null,
+              location_maps_url: draft.location_maps_url ?? null,
+            }}
+            editable={!isPreviewMode}
+            onLocationChange={(location) => updateProfile(location)}
           />
           <PackagesSection
             packages={draft.packages}

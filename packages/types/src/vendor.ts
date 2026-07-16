@@ -13,7 +13,49 @@ import { ulidSchema, paisaSchema } from "./api";
 // ==========================================
 // 1. Vendor Profile Schemas
 // ==========================================
-export const createVendorSchema = z.object({
+const locationLatSchema = z
+  .number()
+  .min(-90, "Latitude must be between -90 and 90")
+  .max(90, "Latitude must be between -90 and 90");
+
+const locationLngSchema = z
+  .number()
+  .min(-180, "Longitude must be between -180 and 180")
+  .max(180, "Longitude must be between -180 and 180");
+
+export const vendorLocationFieldsSchema = z.object({
+  location_name: z
+    .string()
+    .max(200, "Location name cannot exceed 200 characters")
+    .nullable()
+    .optional(),
+  location_address: z
+    .string()
+    .max(500, "Location address cannot exceed 500 characters")
+    .nullable()
+    .optional(),
+  location_lat: locationLatSchema.nullable().optional(),
+  location_lng: locationLngSchema.nullable().optional(),
+  location_maps_url: z
+    .string()
+    .url("Invalid Google Maps URL")
+    .max(2000, "Maps URL cannot exceed 2000 characters")
+    .nullable()
+    .optional(),
+});
+
+function refineVendorLocationCoords<
+  T extends {
+    location_lat?: number | null;
+    location_lng?: number | null;
+  },
+>(data: T): boolean {
+  const hasLat = data.location_lat !== undefined && data.location_lat !== null;
+  const hasLng = data.location_lng !== undefined && data.location_lng !== null;
+  return hasLat === hasLng;
+}
+
+const vendorProfileFieldsSchema = z.object({
   business_name: z
     .string()
     .min(1, "Business name is required")
@@ -22,13 +64,31 @@ export const createVendorSchema = z.object({
     .array(vendorCategorySchema)
     .min(1, "At least one category is required"),
   city_id: z.string().max(50).optional().default("delhi-ncr"),
-  description: z.string().max(2000, "Description cannot exceed 2000 characters").optional(),
+  description: z
+    .string()
+    .max(2000, "Description cannot exceed 2000 characters")
+    .optional(),
   years_in_business: z.number().int().nonnegative().nullable().optional(),
   profile_photo_url: z.string().url("Invalid URL format").nullable().optional(),
+  ...vendorLocationFieldsSchema.shape,
 });
+
+export const createVendorSchema = vendorProfileFieldsSchema.refine(
+  refineVendorLocationCoords,
+  {
+    message: "location_lat and location_lng must both be set or both be null",
+    path: ["location_lat"],
+  },
+);
 export type CreateVendorInput = z.infer<typeof createVendorSchema>;
 
-export const updateVendorSchema = createVendorSchema.partial();
+export const updateVendorSchema = vendorProfileFieldsSchema.partial().refine(
+  refineVendorLocationCoords,
+  {
+    message: "location_lat and location_lng must both be set or both be null",
+    path: ["location_lat"],
+  },
+);
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>;
 
 // ==========================================
