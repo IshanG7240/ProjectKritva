@@ -267,8 +267,14 @@ export const vendorListQuerySchema = z
     category: vendorCategorySchema.optional(),
     city_id: z.string().max(50).optional(),
     q: z.string().trim().min(1).max(100).optional(),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+      .optional(),
     price_min: z.coerce.number().int().nonnegative().optional(),
     price_max: z.coerce.number().int().nonnegative().optional(),
+    /** best = rating then bookings; cheapest = min package price ascending */
+    sort: z.enum(["best", "cheapest"]).default("best"),
     limit: z.coerce.number().int().min(1).max(50).default(12),
     offset: z.coerce.number().int().nonnegative().default(0),
   })

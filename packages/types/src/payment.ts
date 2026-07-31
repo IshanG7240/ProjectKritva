@@ -1,19 +1,10 @@
 import { z } from "zod";
 import { ulidSchema, paisaSchema } from "./api";
+import { paymentModeSchema } from "./enums";
 
 // ==========================================
 // 1. Payment Action Schemas
 // ==========================================
-export const initiatePaymentSchema = z.object({
-  booking_id: ulidSchema,
-});
-export type InitiatePaymentInput = z.infer<typeof initiatePaymentSchema>;
-
-export const simulateCapturePaymentSchema = z.object({
-  booking_id: ulidSchema,
-});
-export type SimulateCapturePaymentInput = z.infer<typeof simulateCapturePaymentSchema>;
-
 export const releasePaymentSchema = z.object({
   booking_id: ulidSchema,
 });
@@ -31,6 +22,17 @@ export const verifyPaymentSchema = z.object({
   razorpay_signature: z.string().min(1, "razorpay_signature is required"),
 });
 export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;
+
+/** Simulated checkout control — only when PAYMENT_MODE=simulated. */
+export const simulatedCheckoutSchema = z.object({
+  order_id: z
+    .string()
+    .min(1)
+    .regex(/^simulated_order_/, "order_id must be a simulated_order_* id"),
+  outcome: z.enum(["success", "failure"]),
+  inject: z.enum(["bad_signature", "replay"]).nullable().optional(),
+});
+export type SimulatedCheckoutInput = z.infer<typeof simulatedCheckoutSchema>;
 
 // ==========================================
 // 2. Vendor Bank Account linking Schemas
@@ -55,3 +57,19 @@ export const verifyPennyDropSchema = z.object({
   amount: paisaSchema, // expected verification amount in paisa (e.g., 100 paisa = ₹1.00)
 });
 export type VerifyPennyDropInput = z.infer<typeof verifyPennyDropSchema>;
+
+export const vendorBankAccountResponseSchema = z.object({
+  id: ulidSchema,
+  last_four: z.string().length(4),
+  ifsc_code: z.string(),
+  account_holder_name: z.string(),
+  penny_drop_status: z.enum(["pending", "verified", "failed"]),
+  gateway_account_id: z.string().nullable(),
+  verified_at: z.string().datetime().nullable(),
+  created_at: z.string().datetime(),
+});
+export type VendorBankAccountResponse = z.infer<
+  typeof vendorBankAccountResponseSchema
+>;
+
+export { paymentModeSchema };

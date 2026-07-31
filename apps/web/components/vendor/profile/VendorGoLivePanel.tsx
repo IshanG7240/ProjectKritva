@@ -89,19 +89,19 @@ export function VendorGoLivePanel({
 
   return (
     <div className="border-b border-mk-border bg-white px-6 py-4">
-      <div className="mx-auto max-w-6xl space-y-4">
+      <div className="mx-auto max-w-[1200px] space-y-4">
         <div
           className={cn(
-            "rounded-xl border px-4 py-3",
+            "rounded-lg border px-4 py-3",
             TONE_STYLES[status.tone],
           )}
         >
-          <p className="font-sans text-sm font-semibold">{status.title}</p>
-          <p className="mt-1 font-sans text-sm leading-relaxed opacity-90">
+          <p className="font-sans text-meta font-semibold">{status.title}</p>
+          <p className="mt-1 font-sans text-meta leading-relaxed opacity-90">
             {status.description}
           </p>
           {verificationStatus === "rejected" && verificationNotes ? (
-            <p className="mt-3 rounded-lg border border-rose-200/80 bg-white/70 px-3 py-2 font-sans text-sm leading-relaxed text-rose-900">
+            <p className="mt-3 rounded-lg border border-rose-200/80 bg-white/70 px-3 py-2 font-sans text-meta leading-relaxed text-rose-900">
               <span className="font-medium">Admin feedback: </span>
               {verificationNotes}
             </p>
@@ -109,12 +109,12 @@ export function VendorGoLivePanel({
         </div>
 
         {(verificationStatus === "draft" || verificationStatus === "rejected") && (
-          <div className="rounded-xl border border-mk-border bg-[#FDFBF7] p-4">
-            <p className="font-sans text-sm font-semibold text-mk-ink">
+          <div className="rounded-lg border border-mk-border bg-mk-surface-2 p-4">
+            <p className="font-sans text-meta font-semibold text-mk-ink">
               Discovery checklist
             </p>
             {readiness?.complete ? (
-              <p className="mt-1 font-sans text-xs text-mk-muted">
+              <p className="mt-1 font-sans text-label text-mk-muted">
                 Your profile is visible on vendor discovery. Submit below to
                 request the Kritva Verified badge.
               </p>
@@ -130,7 +130,7 @@ export function VendorGoLivePanel({
                 return (
                   <li
                     key={key}
-                    className="flex items-start gap-2 font-sans text-sm text-mk-ink"
+                    className="flex items-start gap-2 font-sans text-meta text-mk-ink"
                   >
                     {readinessLoading ? (
                       <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-mk-muted" />
@@ -153,7 +153,7 @@ export function VendorGoLivePanel({
                 size="sm"
                 disabled={!canSubmit}
                 onClick={onSubmit}
-                className="bg-mk-navy hover:bg-[#162C47]"
+                className="bg-mk-navy hover:bg-mk-navy-hover"
               >
                 {isSubmitting && (
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -161,14 +161,14 @@ export function VendorGoLivePanel({
                 {submitLabel}
               </Button>
               {isDirty ? (
-                <p className="font-sans text-xs text-amber-800">
+                <p className="font-sans text-label text-amber-800">
                   Save your changes before submitting.
                 </p>
               ) : null}
             </div>
 
             {submitError ? (
-              <p className="mt-3 font-sans text-sm text-red-600">{submitError}</p>
+              <p className="mt-3 font-sans text-meta text-red-600">{submitError}</p>
             ) : null}
           </div>
         )}

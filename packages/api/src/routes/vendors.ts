@@ -7,12 +7,13 @@ import { Hono } from "hono";
 import { ulid } from "ulid";
 import { and, asc, desc, eq, min, max, or, sql } from "drizzle-orm";
 import { db } from "@kritva/db/client";
-import { users, vendors, vendorPackages, vendorMedia } from "@kritva/db";
+import { users, vendors, vendorPackages, vendorMedia, vendorAvailability } from "@kritva/db";
 import {
   createMediaSchema,
   createPackageSchema,
   packageUnitAllowsMinQuantity,
   submitVendorForReviewSchema,
+  updateAvailabilitySchema,
   updatePackageSchema,
   updateVendorSchema,
   vendorListQuerySchema,
@@ -26,9 +27,14 @@ import {
   vendorDiscoverableWhere,
 } from "../lib/vendor-discoverability.js";
 import { computeVendorReadiness } from "../lib/vendor-readiness.js";
+import { accountStatus } from "../middleware/account-status.js";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
 
 const vendorsRouter = new Hono<{ Variables: AuthVariables }>();
+
+// Protected /me routes — public directory listing stays open.
+vendorsRouter.use("/me", supabaseAuth(), accountStatus());
+vendorsRouter.use("/me/*", supabaseAuth(), accountStatus());
 
 function requestMeta(c: {
   req: { header: (name: string) => string | undefined };
@@ -147,8 +153,10 @@ vendorsRouter.get("/", async (c) => {
     category: c.req.query("category") || undefined,
     city_id: c.req.query("city_id") || undefined,
     q: c.req.query("q") || undefined,
+    date: c.req.query("date") || undefined,
     price_min: c.req.query("price_min") || undefined,
     price_max: c.req.query("price_max") || undefined,
+    sort: c.req.query("sort") || undefined,
     limit: c.req.query("limit") ?? DEFAULT_PAGE_SIZE,
     offset: c.req.query("offset") ?? 0,
   });
@@ -186,6 +194,18 @@ vendorsRouter.get("/", async (c) => {
     );
   }
 
+  // Absence from vendor_availability = available. Only is_available=false rows block.
+  if (query.date) {
+    whereConditions.push(
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${vendorAvailability} va
+        WHERE va.vendor_id = ${vendors.id}
+          AND va.date = ${query.date}::date
+          AND va.is_available = false
+      )`,
+    );
+  }
+
   const havingConditions = [];
 
   if (query.price_min != null) {
@@ -213,12 +233,25 @@ vendorsRouter.get("/", async (c) => {
       profile_photo_url: vendors.profilePhotoUrl,
       verification_status: vendors.verificationStatus,
       cover_image: sql<string | null>`(
-        SELECT ${vendorMedia.url} FROM ${vendorMedia}
-        WHERE ${vendorMedia.vendorId} = ${vendors.id}
-          AND ${vendorMedia.section} = 'banner'
-          AND ${vendorMedia.type} = 'image'
-        ORDER BY ${vendorMedia.position} ASC
-        LIMIT 1
+        COALESCE(
+          (
+            SELECT ${vendorMedia.url} FROM ${vendorMedia}
+            WHERE ${vendorMedia.vendorId} = ${vendors.id}
+              AND ${vendorMedia.section} = 'banner'
+              AND ${vendorMedia.type} = 'image'
+            ORDER BY ${vendorMedia.position} ASC
+            LIMIT 1
+          ),
+          (
+            SELECT ${vendorMedia.url} FROM ${vendorMedia}
+            WHERE ${vendorMedia.vendorId} = ${vendors.id}
+              AND ${vendorMedia.section} = 'portfolio'
+              AND ${vendorMedia.type} = 'image'
+            ORDER BY ${vendorMedia.position} ASC
+            LIMIT 1
+          ),
+          ${vendors.profilePhotoUrl}
+        )
       )`,
       price_min: min(vendorPackages.price),
       price_max: max(vendorPackages.price),
@@ -256,10 +289,15 @@ vendorsRouter.get("/", async (c) => {
     baseQuery.having(and(...havingConditions));
   }
 
-  const rows = await baseQuery
-    .orderBy(desc(vendors.avgRating), desc(vendors.bookingCount))
-    .limit(limit)
-    .offset(offset);
+  const ordered =
+    query.sort === "cheapest"
+      ? baseQuery.orderBy(
+          sql`min(${vendorPackages.price}) ASC NULLS LAST`,
+          desc(vendors.avgRating),
+        )
+      : baseQuery.orderBy(desc(vendors.avgRating), desc(vendors.bookingCount));
+
+  const rows = await ordered.limit(limit).offset(offset);
 
   const totalCount = rows.length > 0 ? Number(rows[0]!.total_count) : 0;
 
@@ -309,7 +347,7 @@ vendorsRouter.get("/", async (c) => {
  * GET /v1/vendors/me/readiness
  * Returns profile completeness checks for submit-for-review.
  */
-vendorsRouter.get("/me/readiness", supabaseAuth(), async (c) => {
+vendorsRouter.get("/me/readiness", async (c) => {
   const userId = c.get("user").id;
   const vendor = await resolveVendorForUser(userId);
 
@@ -332,10 +370,164 @@ vendorsRouter.get("/me/readiness", supabaseAuth(), async (c) => {
 });
 
 /**
+ * GET /v1/vendors/me/availability
+ * Vendor calendar rows. Absence of a date means available.
+ */
+vendorsRouter.get("/me/availability", async (c) => {
+  const userId = c.get("user").id;
+  const vendor = await resolveVendorForUser(userId);
+
+  if (!vendor) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "No vendor profile is associated with this account.",
+        },
+      },
+      403,
+    );
+  }
+
+  const rows = await db
+    .select({
+      date: vendorAvailability.date,
+      is_available: vendorAvailability.isAvailable,
+      booking_id: vendorAvailability.bookingId,
+    })
+    .from(vendorAvailability)
+    .where(eq(vendorAvailability.vendorId, vendor.id))
+    .orderBy(asc(vendorAvailability.date));
+
+  return c.json(
+    {
+      data: {
+        dates: rows.map((r) => ({
+          date: r.date,
+          is_available: r.is_available,
+          booking_id: r.booking_id ?? null,
+        })),
+      },
+      error: null,
+    },
+    200,
+  );
+});
+
+/**
+ * PUT /v1/vendors/me/availability
+ * Upsert date-level availability. is_available=false blocks search for that date.
+ */
+vendorsRouter.put("/me/availability", async (c) => {
+  const userId = c.get("user").id;
+  const vendor = await resolveVendorForUser(userId);
+
+  if (!vendor) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "No vendor profile is associated with this account.",
+        },
+      },
+      403,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json(
+      {
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: "Invalid JSON body" },
+      },
+      400,
+    );
+  }
+
+  const parsed = updateAvailabilitySchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.errors[0]?.message ?? "Invalid availability payload",
+        },
+      },
+      400,
+    );
+  }
+
+  const { dates } = parsed.data;
+
+  await db.transaction(async (tx) => {
+    for (const item of dates) {
+      if (item.is_available) {
+        // Absence means available — clear explicit blocks / free markers.
+        await tx
+          .delete(vendorAvailability)
+          .where(
+            and(
+              eq(vendorAvailability.vendorId, vendor.id),
+              eq(vendorAvailability.date, item.date),
+            ),
+          );
+      } else {
+        await tx
+          .insert(vendorAvailability)
+          .values({
+            id: ulid(),
+            vendorId: vendor.id,
+            date: item.date,
+            isAvailable: false,
+            bookingId: null,
+          })
+          .onConflictDoUpdate({
+            target: [vendorAvailability.vendorId, vendorAvailability.date],
+            set: {
+              isAvailable: false,
+              bookingId: null,
+            },
+          });
+      }
+    }
+  });
+
+  const rows = await db
+    .select({
+      date: vendorAvailability.date,
+      is_available: vendorAvailability.isAvailable,
+      booking_id: vendorAvailability.bookingId,
+    })
+    .from(vendorAvailability)
+    .where(eq(vendorAvailability.vendorId, vendor.id))
+    .orderBy(asc(vendorAvailability.date));
+
+  return c.json(
+    {
+      data: {
+        dates: rows.map((r) => ({
+          date: r.date,
+          is_available: r.is_available,
+          booking_id: r.booking_id ?? null,
+        })),
+      },
+      error: null,
+    },
+    200,
+  );
+});
+
+/**
  * POST /v1/vendors/me/submit
  * Submits a complete vendor profile for admin review.
  */
-vendorsRouter.post("/me/submit", supabaseAuth(), async (c) => {
+vendorsRouter.post("/me/submit", async (c) => {
   const authUser = c.get("user");
   const userId = authUser.id;
   const vendor = await resolveVendorForUser(userId);
@@ -494,7 +686,7 @@ vendorsRouter.post("/me/submit", supabaseAuth(), async (c) => {
  * GET /v1/vendors/me
  * Authenticated vendor: returns the full editable profile for the current user.
  */
-vendorsRouter.get("/me", supabaseAuth(), async (c) => {
+vendorsRouter.get("/me", async (c) => {
   const userId = c.get("user").id;
 
   const [vendor] = await db
@@ -606,7 +798,7 @@ vendorsRouter.get("/me", supabaseAuth(), async (c) => {
  * PATCH /v1/vendors/me
  * Authenticated vendor: updates business profile fields.
  */
-vendorsRouter.patch("/me", supabaseAuth(), async (c) => {
+vendorsRouter.patch("/me", async (c) => {
   const userId = c.get("user").id;
   const vendor = await resolveVendorForUser(userId);
 
@@ -734,7 +926,7 @@ vendorsRouter.patch("/me", supabaseAuth(), async (c) => {
  * GET /v1/vendors/me/packages
  * Authenticated vendor: lists all packages (active and inactive).
  */
-vendorsRouter.get("/me/packages", supabaseAuth(), async (c) => {
+vendorsRouter.get("/me/packages", async (c) => {
   const userId = c.get("user").id;
   const vendor = await resolveVendorForUser(userId);
 
@@ -779,7 +971,7 @@ vendorsRouter.get("/me/packages", supabaseAuth(), async (c) => {
  * POST /v1/vendors/me/packages
  * Authenticated vendor: creates a new package offering.
  */
-vendorsRouter.post("/me/packages", supabaseAuth(), async (c) => {
+vendorsRouter.post("/me/packages", async (c) => {
   const userId = c.get("user").id;
   const vendor = await resolveVendorForUser(userId);
 
@@ -857,7 +1049,7 @@ vendorsRouter.post("/me/packages", supabaseAuth(), async (c) => {
  * PATCH /v1/vendors/me/packages/:id
  * Authenticated vendor: updates an existing package (including activate/deactivate).
  */
-vendorsRouter.patch("/me/packages/:id", supabaseAuth(), async (c) => {
+vendorsRouter.patch("/me/packages/:id", async (c) => {
   const userId = c.get("user").id;
   const packageId = c.req.param("id");
   const vendor = await resolveVendorForUser(userId);
@@ -989,7 +1181,7 @@ vendorsRouter.patch("/me/packages/:id", supabaseAuth(), async (c) => {
  * DELETE /v1/vendors/me/packages/:id
  * Authenticated vendor: soft-deletes a package (sets is_active = false).
  */
-vendorsRouter.delete("/me/packages/:id", supabaseAuth(), async (c) => {
+vendorsRouter.delete("/me/packages/:id", async (c) => {
   const userId = c.get("user").id;
   const packageId = c.req.param("id");
   const vendor = await resolveVendorForUser(userId);
@@ -1048,7 +1240,7 @@ vendorsRouter.delete("/me/packages/:id", supabaseAuth(), async (c) => {
  * POST /v1/vendors/me/media
  * Authenticated vendor: adds a gallery or portfolio media item.
  */
-vendorsRouter.post("/me/media", supabaseAuth(), async (c) => {
+vendorsRouter.post("/me/media", async (c) => {
   const userId = c.get("user").id;
   const vendor = await resolveVendorForUser(userId);
 
@@ -1119,7 +1311,7 @@ vendorsRouter.post("/me/media", supabaseAuth(), async (c) => {
  * DELETE /v1/vendors/me/media/:mediaId
  * Authenticated vendor: removes a media item.
  */
-vendorsRouter.delete("/me/media/:mediaId", supabaseAuth(), async (c) => {
+vendorsRouter.delete("/me/media/:mediaId", async (c) => {
   const userId = c.get("user").id;
   const mediaId = c.req.param("mediaId");
   const vendor = await resolveVendorForUser(userId);

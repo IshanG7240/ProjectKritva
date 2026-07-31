@@ -26,7 +26,7 @@
     "hono": "^4.7.11",
     "jose": "^6.2.3",
     "ulid": "^3.0.2",
-    "zod": "^4.4.3"
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@kritva/eslint-config": "workspace:*",

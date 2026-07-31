@@ -8,9 +8,12 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@kritva/db/client";
 import { users, vendors } from "@kritva/db";
+import { accountStatus } from "../middleware/account-status.js";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
 
 const authRouter = new Hono<{ Variables: AuthVariables }>();
+
+authRouter.use("*", supabaseAuth(), accountStatus());
 
 const syncRequestSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name cannot exceed 100 characters"),
@@ -22,7 +25,7 @@ const syncRequestSchema = z.object({
  * POST /v1/auth/sync
  * Reconciles the client-side Supabase authenticated user with our database.
  */
-authRouter.post("/sync", supabaseAuth(), async (c) => {
+authRouter.post("/sync", async (c) => {
   const authUser = c.get("user");
   const userId = authUser.id;
 
@@ -33,22 +36,6 @@ authRouter.post("/sync", supabaseAuth(), async (c) => {
     .limit(1);
 
   if (existingUser) {
-    if (existingUser.status === "suspended" || existingUser.status === "banned") {
-      return c.json(
-        {
-          data: null,
-          error: {
-            code: "FORBIDDEN",
-            message:
-              existingUser.status === "banned"
-                ? "Your account has been banned."
-                : "Your account has been suspended.",
-          },
-        },
-        403,
-      );
-    }
-
     return c.json(
       {
         data: {
@@ -136,7 +123,7 @@ function toSlug(businessName: string): string {
  * PATCH /v1/auth/onboarding
  * Assigns a role, marks onboarding complete, and upserts a vendor profile if needed.
  */
-authRouter.patch("/onboarding", supabaseAuth(), async (c) => {
+authRouter.patch("/onboarding", async (c) => {
   const authUser = c.get("user");
   const userId = authUser.id;
 

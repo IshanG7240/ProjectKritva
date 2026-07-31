@@ -27,23 +27,23 @@ export function ManageEditToolbar({
   onDiscard,
 }: ManageEditToolbarProps) {
   return (
-    <div className="sticky top-14 z-20 mt-14 border-b border-mk-border bg-[#FDFBF7]/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-3">
+    <div className="sticky top-14 z-20 mt-14 border-b border-mk-border bg-mk-surface-2/95 backdrop-blur-sm">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2">
-          <span className="font-sans text-sm font-medium text-mk-ink">
+          <span className="font-sans text-meta font-medium text-mk-ink">
             {isPreviewMode ? "Live preview" : "Editing profile"}
           </span>
           {isPreviewMode && isDirty && (
-            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-900">
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-label font-medium text-sky-900">
               Showing unsaved draft
             </span>
           )}
           {!isPreviewMode && isDirty ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-label font-medium text-amber-900">
               Unsaved changes
             </span>
           ) : !isPreviewMode ? (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-label font-medium text-emerald-800">
               All changes saved
             </span>
           ) : null}

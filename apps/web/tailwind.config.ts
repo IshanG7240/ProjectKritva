@@ -2,122 +2,110 @@
 import type { Config } from "tailwindcss";
 
 const config = {
-  darkMode: ["class"],
   content: [
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    './app/**/*.{ts,tsx}',
-    './src/**/*.{ts,tsx}',
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
   ],
   prefix: "",
   theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: {
-        "2xl": "1400px",
-      },
+    fontSize: {
+      display: [
+        "clamp(2.25rem, 5vw, 3.5rem)",
+        { lineHeight: "1.05", fontWeight: "600" },
+      ],
+      title: ["1.5rem", { lineHeight: "1.25", fontWeight: "600" }],
+      heading: ["1.0625rem", { lineHeight: "1.35", fontWeight: "600" }],
+      subhead: ["0.9375rem", { lineHeight: "1.4", fontWeight: "600" }],
+      body: ["0.9375rem", { lineHeight: "1.55", fontWeight: "400" }],
+      meta: ["0.8125rem", { lineHeight: "1.45", fontWeight: "400" }],
+      label: [
+        "0.6875rem",
+        { lineHeight: "1.2", fontWeight: "500", letterSpacing: "0.06em" },
+      ],
+      money: ["1.25rem", { lineHeight: "1.2", fontWeight: "600" }],
+      "money-lg": ["2rem", { lineHeight: "1.1", fontWeight: "600" }],
+    },
+    borderRadius: {
+      md: "8px",
+      lg: "12px",
+      full: "9999px",
     },
     extend: {
       fontFamily: {
         sans: ["var(--font-sans)", "sans-serif"],
-        display: ["var(--font-lexend)", "sans-serif"],
         serif: ["var(--font-serif)", "Georgia", "serif"],
-        mono: ["var(--font-jetbrains-mono)", "monospace"],
       },
       colors: {
-        border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
-          DEFAULT: "var(--secondary)",
-          foreground: "var(--secondary-foreground)",
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
         },
         destructive: {
-          DEFAULT: "var(--destructive)",
-          foreground: "var(--destructive-foreground)",
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
         },
         muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "var(--muted-foreground)",
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
         },
         accent: {
-          DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
         },
         popover: {
-          DEFAULT: "var(--popover)",
-          foreground: "var(--popover-foreground)",
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
         },
         card: {
-          DEFAULT: "var(--card)",
-          foreground: "var(--card-foreground)",
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
         },
-        neutral: {
-          0: "#0B0E14",
-          50: "#13171F",
-          100: "#1C212C",
-          200: "#2A3040",
-          400: "#5C6270",
-          600: "#9DA3B0",
-          900: "#F5F6F8",
+        held: "hsl(var(--held))",
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          bg: "hsl(var(--success-bg))",
+          fg: "hsl(var(--success-fg))",
         },
-        kritva: {
-          blue: {
-            DEFAULT: "#3D7FFF",
-            hover: "#2563EB",
-            light: "#1E40AF"
-          },
-          violet: "#8B7CF6",
-          green: {
-            DEFAULT: "#22C55E",
-            bg: "#16653F"
-          },
-          amber: {
-            DEFAULT: "#F59E0B",
-            bg: "#92400E"
-          },
-          red: {
-            DEFAULT: "#EF4444",
-            bg: "#7F1D1D"
-          }
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          bg: "hsl(var(--warning-bg))",
+          fg: "hsl(var(--warning-fg))",
         },
-        // Marketing page light-mode palette
+        danger: {
+          DEFAULT: "hsl(var(--danger))",
+          bg: "hsl(var(--danger-bg))",
+          fg: "hsl(var(--danger-fg))",
+        },
         mk: {
-          bg: "#F5EFE2",
-          ink: "#1C1A16",
-          muted: "#7A7060",
-          border: "#DDD5C4",
-          navy: "#1D3557",
-          amber: "#B87333",
+          bg: "hsl(var(--mk-bg))",
+          app: "hsl(var(--mk-app))",
+          surface: "hsl(var(--mk-surface))",
+          "surface-2": "hsl(var(--mk-surface-2))",
+          ink: "hsl(var(--mk-ink))",
+          muted: "hsl(var(--mk-muted))",
+          border: "hsl(var(--mk-border))",
+          line: "hsl(var(--mk-line))",
+          navy: "hsl(var(--mk-navy))",
+          "navy-hover": "hsl(var(--mk-navy-hover))",
+          copper: "hsl(var(--mk-copper))",
+          amber: "hsl(var(--mk-copper))",
           hero: "#18171A",
         },
       },
-      spacing: {
-        '1': '4px',
-        '2': '8px',
-        '3': '12px',
-        '4': '16px',
-        '6': '24px',
-        '8': '32px',
-        '12': '48px',
-        '16': '64px',
-        '24': '96px',
-        '32': '128px',
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-        '4px': '4px',
-        '12px': '12px',
-        '24px': '24px',
+      boxShadow: {
+        pop: "0 8px 30px rgba(28, 26, 22, 0.12)",
+        sticky: "0 1px 0 rgba(28, 26, 22, 0.08)",
       },
       keyframes: {
         "accordion-down": {

@@ -6,6 +6,7 @@ packages:
 # Pin a few packages whose freshest releases are still inside the global
 # minimum-release-age supply-chain cutoff. Re-evaluate periodically.
 overrides:
+  "zod": "3.25.76"
   "@typescript-eslint/eslint-plugin": "8.61.0"
   "@typescript-eslint/parser": "8.61.0"
   "@typescript-eslint/project-service": "8.61.0"

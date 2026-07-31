@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { paisaSchema, ulidSchema } from "./api";
 import {
+  escrowOutcomeSchema,
   packageUnitSchema,
   roleSchema,
   userStatusSchema,
@@ -150,6 +151,39 @@ export const resolveDisputeSchema = z
   );
 export type ResolveDisputeInput = z.infer<typeof resolveDisputeSchema>;
 
+/**
+ * Admin money decision on a disputed (or held) booking.
+ * outcome maps to bookings.escrow_outcome; reason is shown to both parties.
+ */
+export const resolveBookingSchema = z.object({
+  outcome: escrowOutcomeSchema,
+  reason: z
+    .string()
+    .min(1, "Reason is required")
+    .max(2000, "Reason cannot exceed 2000 characters"),
+  /** Paisa to vendor on split; required when outcome is split. */
+  vendor_payout_amount: paisaSchema.optional().nullable(),
+  /** Paisa refunded to customer on split; required when outcome is split. */
+  customer_refund_amount: paisaSchema.optional().nullable(),
+}).refine(
+  (data) => {
+    if (data.outcome !== "split") return true;
+    const v = data.vendor_payout_amount ?? 0;
+    const c = data.customer_refund_amount ?? 0;
+    return v > 0 || c > 0;
+  },
+  {
+    message: "Split requires vendor_payout_amount and/or customer_refund_amount",
+    path: ["vendor_payout_amount"],
+  },
+);
+export type ResolveBookingInput = z.infer<typeof resolveBookingSchema>;
+
+export const reconciliationQuerySchema = z.object({
+  mode: z.enum(["simulated", "live"]).optional().default("live"),
+});
+export type ReconciliationQuery = z.infer<typeof reconciliationQuerySchema>;
+
 // ==========================================
 // 5. Platform Configuration Schema
 // ==========================================
@@ -157,3 +191,32 @@ export const updateConfigSchema = z.object({
   value: z.unknown(),
 });
 export type UpdateConfigInput = z.infer<typeof updateConfigSchema>;
+
+/** Commission 0–30% inclusive → 0–3000 bps. */
+export const updateCategoryCommissionSchema = z.object({
+  commission_bps: z
+    .number()
+    .int("commission_bps must be an integer")
+    .min(0, "commission_bps cannot be negative")
+    .max(3000, "commission_bps cannot exceed 3000 (30%)"),
+  /** Required when new rate is above 500 bps (5%). */
+  confirm_commission_bps: z.number().int().optional(),
+});
+export type UpdateCategoryCommissionInput = z.infer<
+  typeof updateCategoryCommissionSchema
+>;
+
+export const listAdminBookingsQuerySchema = z.object({
+  status: z
+    .enum(["payment_held", "completed", "disputed", "payment_released"])
+    .optional(),
+  /** When true, only bookings with funds currently held (payment_held | completed). */
+  held: z
+    .union([z.literal("true"), z.literal("1"), z.literal("false"), z.literal("0")])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+  mode: z.enum(["simulated", "live"]).optional(),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+  offset: z.coerce.number().int().nonnegative().default(0),
+});
+export type ListAdminBookingsQuery = z.infer<typeof listAdminBookingsQuerySchema>;

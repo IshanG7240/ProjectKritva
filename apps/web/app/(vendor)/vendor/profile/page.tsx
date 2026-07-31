@@ -17,7 +17,6 @@ import { LocationSection } from "@/components/vendor/profile/LocationSection";
 import { PackagesSection } from "@/components/vendor/profile/PackagesSection";
 import { PortfolioShowcase } from "@/components/vendor/profile/PortfolioShowcase";
 import { VendorProfileSidebar } from "@/components/vendor/profile/VendorProfileSidebar";
-import { TestimonialsSection } from "@/components/vendor/profile/TestimonialsSection";
 import { VendorRatingSection } from "@/components/vendor/profile/VendorRatingSection";
 
 async function fetchVendorReadiness(): Promise<VendorReadinessResponse> {
@@ -48,11 +47,11 @@ function formatVendorLocation(cityId: string): string {
 
 function ManageSidebar() {
   return (
-    <div className="rounded-xl border border-mk-border bg-[#FDFBF7] p-4">
-      <p className="font-sans text-sm font-semibold text-mk-ink">
+    <div className="rounded-lg border border-mk-border bg-mk-surface-2 p-4">
+      <p className="font-sans text-meta font-semibold text-mk-ink">
         Profile editing
       </p>
-      <p className="mt-2 font-sans text-sm leading-relaxed text-mk-muted">
+      <p className="mt-2 font-sans text-meta leading-relaxed text-mk-muted">
         Click any text to edit it. Upload photos for your gallery. Changes are
         saved locally as you type — use Save changes when you are ready to
         publish.
@@ -189,15 +188,15 @@ function VendorProfileEditor() {
       <VendorProfileLayout
         vendorName="Loading..."
         toolbar={
-          <div className="mt-14 border-b border-mk-border bg-[#FDFBF7] px-6 py-3">
-            <p className="mx-auto max-w-6xl font-sans text-sm text-mk-muted">
+          <div className="mt-14 border-b border-mk-border bg-mk-surface-2 px-6 py-3">
+            <p className="mx-auto max-w-[1200px] font-sans text-meta text-mk-muted">
               Loading profile…
             </p>
           </div>
         }
         hero={
-          <div className="mx-auto max-w-6xl px-6 pt-5">
-            <div className="h-[320px] animate-pulse rounded-2xl border border-mk-border bg-[#EDE8DE]" />
+          <div className="mx-auto max-w-[1200px] px-4 pt-5 sm:px-6">
+            <div className="aspect-[3/2] animate-pulse rounded-lg border border-mk-border bg-mk-line" />
           </div>
         }
         main={<p className="font-sans text-mk-muted">Loading…</p>}
@@ -245,7 +244,7 @@ function VendorProfileEditor() {
           {(saveMessage || saveError) && (
             <div className="border-b border-mk-border bg-white px-6 py-2">
               <p
-                className={`mx-auto max-w-6xl text-sm ${saveError ? "text-red-600" : "text-emerald-700"
+                className={`mx-auto max-w-[1200px] text-meta ${saveError ? "text-red-600" : "text-emerald-700"
                   }`}
               >
                 {saveError ?? saveMessage}
@@ -279,7 +278,7 @@ function VendorProfileEditor() {
             onUpload={handleBannerUpload}
             onRemove={removeMedia}
           />
-          <div className="mx-auto max-w-6xl px-6 pt-4">
+          <div className="mx-auto max-w-[1200px] px-6 pt-4">
             <VendorHeader
               businessName={draft.business_name}
               categories={draft.category}
@@ -290,10 +289,6 @@ function VendorProfileEditor() {
               ratingCount={draft.rating_count}
               avatarUrl={draft.profile_photo_url}
               isVerified={verificationStatus === "approved"}
-              showPlaceholderRating={
-                isPreviewMode &&
-                (draft.avg_rating == null || draft.rating_count === 0)
-              }
               editable={!isPreviewMode}
               uploadingAvatar={uploadingPfp}
               onAvatarUpload={handleProfilePhotoUpload}
@@ -352,16 +347,10 @@ function VendorProfileEditor() {
       sidebar={isPreviewMode ? <VendorProfileSidebar /> : <ManageSidebar />}
       bottom={
         isPreviewMode ? (
-          <>
-            <VendorRatingSection
-              avgRating={draft.avg_rating}
-              ratingCount={draft.rating_count}
-              showPlaceholderRating={
-                draft.avg_rating == null || draft.rating_count === 0
-              }
-            />
-            <TestimonialsSection />
-          </>
+          <VendorRatingSection
+            avgRating={draft.avg_rating}
+            ratingCount={draft.rating_count}
+          />
         ) : undefined
       }
     />
@@ -374,7 +363,7 @@ export default function VendorProfilePage() {
   if (authLoading || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-mk-bg pt-14">
-        <p className="font-sans text-sm text-mk-muted">Loading…</p>
+        <p className="font-sans text-meta text-mk-muted">Loading…</p>
       </main>
     );
   }

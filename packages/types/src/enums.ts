@@ -24,7 +24,12 @@ export const BOOKING_STATUSES = [
   "payment_released",
   "disputed",
   "cancelled",
+  "refunded",
 ] as const;
+
+export const ESCROW_OUTCOMES = ["released", "refunded", "split"] as const;
+export const escrowOutcomeSchema = z.enum(ESCROW_OUTCOMES);
+export type EscrowOutcome = z.infer<typeof escrowOutcomeSchema>;
 export const bookingStatusSchema = z.enum(BOOKING_STATUSES);
 export type BookingStatus = z.infer<typeof bookingStatusSchema>;
 
@@ -34,6 +39,10 @@ export type BookingStatus = z.infer<typeof bookingStatusSchema>;
 export const PAYMENT_STATUSES = ["pending", "initiated", "captured", "failed", "refunded"] as const;
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+
+export const PAYMENT_MODES = ["simulated", "live"] as const;
+export const paymentModeSchema = z.enum(PAYMENT_MODES);
+export type PaymentMode = z.infer<typeof paymentModeSchema>;
 
 // ==========================================
 // 4. Escrow Statuses

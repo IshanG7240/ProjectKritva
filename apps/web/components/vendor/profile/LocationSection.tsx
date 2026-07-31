@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink, MapPin, Trash2 } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import {
   hasVendorLocation,
   mapsEmbedUrl,
@@ -93,11 +93,11 @@ export function LocationSection({
       <section>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-sans text-lg font-semibold text-mk-ink">
+            <h2 className="font-sans text-heading font-semibold text-mk-ink">
               Studio / venue location{" "}
               <span className="font-normal text-mk-muted">(optional)</span>
             </h2>
-            <p className="mt-1 font-sans text-sm text-mk-muted">
+            <p className="mt-1 font-sans text-meta text-mk-muted">
               Paste a Google Maps link so clients can find your studio or venue.
               You can skip this and add it later.
             </p>
@@ -110,7 +110,7 @@ export function LocationSection({
                 setParseError(null);
                 onLocationChange(EMPTY_LOCATION);
               }}
-              className="inline-flex items-center gap-1.5 font-sans text-sm text-mk-muted hover:text-mk-ink"
+              className="inline-flex items-center gap-1.5 font-sans text-meta text-mk-muted hover:text-mk-ink"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Clear
@@ -120,7 +120,7 @@ export function LocationSection({
 
         <div className="mt-4 flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="font-sans text-xs font-medium text-mk-muted">
+            <span className="font-sans text-label font-medium text-mk-muted">
               Google Maps link
             </span>
             <input
@@ -128,12 +128,12 @@ export function LocationSection({
               value={mapsUrlInput}
               onChange={(e) => applyMapsUrl(e.target.value)}
               placeholder="https://www.google.com/maps/place/..."
-              className="rounded-md border border-mk-border bg-white px-3 py-2 font-sans text-sm text-mk-ink outline-none focus:border-mk-navy"
+              className="rounded-md border border-mk-border bg-white px-3 py-2 font-sans text-meta text-mk-ink outline-none focus:border-mk-navy"
             />
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-sans text-xs font-medium text-mk-muted">
+            <span className="font-sans text-label font-medium text-mk-muted">
               Location name
             </span>
             <input
@@ -146,12 +146,12 @@ export function LocationSection({
                 })
               }
               placeholder="e.g. Grand Farmhouse, Chattarpur"
-              className="rounded-md border border-mk-border bg-white px-3 py-2 font-sans text-sm text-mk-ink outline-none focus:border-mk-navy"
+              className="rounded-md border border-mk-border bg-white px-3 py-2 font-sans text-meta text-mk-ink outline-none focus:border-mk-navy"
             />
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-sans text-xs font-medium text-mk-muted">
+            <span className="font-sans text-label font-medium text-mk-muted">
               Address (optional)
             </span>
             <input
@@ -166,12 +166,12 @@ export function LocationSection({
                 })
               }
               placeholder="Street / area for clients"
-              className="rounded-md border border-mk-border bg-white px-3 py-2 font-sans text-sm text-mk-ink outline-none focus:border-mk-navy"
+              className="rounded-md border border-mk-border bg-white px-3 py-2 font-sans text-meta text-mk-ink outline-none focus:border-mk-navy"
             />
           </label>
 
           {parseError ? (
-            <p className="font-sans text-sm text-red-600">{parseError}</p>
+            <p className="font-sans text-meta text-red-600">{parseError}</p>
           ) : null}
         </div>
 
@@ -199,8 +199,8 @@ export function LocationSection({
   }
 
   return (
-    <section>
-      <h2 className="font-sans text-lg font-semibold text-mk-ink">Location</h2>
+    <section className="space-y-2.5">
+      <h2 className="text-heading text-mk-ink">Location</h2>
       <LocationPreview
         name={location.location_name}
         address={location.location_address}
@@ -214,7 +214,6 @@ export function LocationSection({
 
 function LocationPreview({
   name,
-  address,
   lat,
   lng,
   mapsUrl,
@@ -226,35 +225,29 @@ function LocationPreview({
   mapsUrl: string | null;
 }) {
   const openUrl = mapsOpenUrl(lat, lng, mapsUrl);
-  const title = name?.trim() || address?.trim() || "View on Google Maps";
+  const areaName = name?.trim() || "View on Google Maps";
 
   return (
-    <div className="mt-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-mk-navy" />
-          <div className="min-w-0">
-            <p className="font-sans text-sm font-medium text-mk-ink">{title}</p>
-            {name?.trim() && address?.trim() ? (
-              <p className="mt-0.5 font-sans text-sm text-mk-muted">{address}</p>
-            ) : null}
-          </div>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-body font-medium text-mk-ink">{areaName}</p>
         </div>
         <a
           href={openUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 font-sans text-sm font-medium text-mk-navy hover:underline"
+          className="inline-flex items-center gap-1 text-body font-medium text-mk-navy hover:underline"
         >
-          Open in Maps
+          Maps
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       </div>
-      <div className="mt-3 overflow-hidden rounded-xl border border-mk-border">
+      <div className="overflow-hidden rounded-lg border border-mk-border">
         <iframe
-          title={`Map for ${title}`}
+          title={`Map for ${areaName}`}
           src={mapsEmbedUrl(lat, lng)}
-          className="h-56 w-full border-0 md:h-64"
+          className="h-44 w-full border-0 md:h-52"
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
           allowFullScreen

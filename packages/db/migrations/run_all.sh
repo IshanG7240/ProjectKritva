@@ -27,6 +27,11 @@ MIGRATIONS=(
   "015_vendor_draft_status.sql"
   "016_vendor_packages.sql"
   "017_vendor_location.sql"
+  "018_revoke_anon_authenticated_grants.sql"
+  "019_schema_drift_fixes.sql"
+  "020_mvp_columns.sql"
+  "021_payment_gateway_unique.sql"
+  "022_refunded_escrow_outcome.sql"
 )
 
 echo "Running ${#MIGRATIONS[@]} migrations..."

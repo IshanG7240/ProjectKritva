@@ -9,7 +9,7 @@ export default function MarketingLayout({
 }>) {
   return (
     <LenisProvider>
-      <div className="flex min-h-screen flex-col bg-[#F5EFE2]">
+      <div className="flex min-h-screen flex-col bg-mk-bg">
         <AppNav />
         {children}
         <MarketingFooter />

@@ -1,45 +1,40 @@
-/* eslint-disable */
 "use client";
 
 /**
- * HeroSection
- *
- * Light cream hero:
- * - Left: display headline with italic amber "certainty", subtext, CTAs.
- * - Right: hero image.
- * - Bottom strip: numbered feature tags on a slightly tinted band.
+ * HeroSection — first viewport: headline, subhead, CTAs, tight feature strip.
  */
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+
+import { buttonVariants } from "@/components/ui/button";
+import { Media } from "@/components/ui/media";
+import { shellWide } from "@/lib/shell";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 const FEATURES = [
-  "SEBI-Regulated Escrow",
-  "Portfolio Audited Vendors",
-  "GST-Ready Invoicing",
-  "Municipal & Fire Clearance",
-  "Multi-Currency NRI Settlement",
+  "Money held until the job is done",
+  "Photographers you can actually book",
+  "Release when you're happy",
 ];
 
 export function HeroSection() {
   return (
-    <section id="hero" className="bg-[#F5EFE2]">
-      <div className="mx-auto max-w-6xl px-6 pt-10 pb-0 md:pt-16">
+    <section id="hero" className="bg-mk-bg">
+      <div className={`${shellWide} px-6 pt-12 pb-12`}>
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:gap-12">
-          <div className="flex flex-1 flex-col gap-7 md:pt-4">
+          <div className="flex flex-1 flex-col gap-5">
             <motion.h1
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, ease: EASE }}
-              className="font-sans text-[clamp(2.6rem,6vw,4.4rem)] font-semibold leading-[1.06] tracking-tight text-[#1C1A16]"
+              className="text-display tracking-tight text-mk-ink"
             >
               Every event,
               <br />
               held in{" "}
-              <span className="font-serif italic text-[#B87333]">
+              <span className="font-serif italic text-mk-copper">
                 certainty.
               </span>
             </motion.h1>
@@ -48,15 +43,13 @@ export function HeroSection() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: EASE, delay: 0.07 }}
-              className="max-w-[360px] font-sans text-[15px] leading-relaxed text-[#7A7060]"
+              className="max-w-[46ch] text-body text-mk-muted"
             >
-              Kritva replaces{" "}
-              <span className="text-[#B87333]">cash advances</span>,{" "}
-              <span className="text-[#1D3557]">WhatsApp coordination</span>, and
-              clearance runarounds with one platform — verified vendors,
-              escrowed payments, and{" "}
-              <span className="text-[#1D3557]">municipal compliance</span> built
-              in.
+              Find a photographer in Delhi NCR, agree a price, pay into
+              escrow, and release the money when the work is done — no{" "}
+              <span className="text-mk-copper">cash advances</span>, no{" "}
+              <span className="text-mk-navy">guessing</span> where your
+              money went.
             </motion.p>
 
             <motion.div
@@ -67,15 +60,15 @@ export function HeroSection() {
             >
               <Link
                 href="/vendors"
-                className="inline-flex h-11 items-center gap-2 rounded-full bg-[#1C1A16] px-6 font-sans text-sm font-medium text-white transition-opacity hover:opacity-80"
+                className={buttonVariants({ variant: "primary", size: "lg" })}
               >
-                Find verified vendors →
+                Find photographers →
               </Link>
               <Link
                 href="/login"
-                className="inline-flex h-11 items-center px-5 font-sans text-sm font-medium text-[#1C1A16] transition-colors hover:text-[#7A7060]"
+                className={buttonVariants({ variant: "ghost", size: "lg" })}
               >
-                List your business
+                List as a photographer
               </Link>
             </motion.div>
           </div>
@@ -86,29 +79,26 @@ export function HeroSection() {
             transition={{ duration: 0.6, ease: EASE, delay: 0.1 }}
             className="relative w-full md:w-[45%] md:flex-shrink-0"
           >
-            <div className="relative h-[320px] overflow-hidden rounded-[4px] md:h-[420px]">
-              <Image
-                src="/assets/hero-bg.jpg"
-                alt="Elegant event table with florals and candles"
-                fill
-                sizes="(min-width: 768px) 45vw, 100vw"
-                className="object-cover"
-                priority
-              />
-            </div>
+            <Media
+              ratio="portrait"
+              src="/assets/hero-bg.jpg"
+              alt="Elegant event table with florals and candles"
+              sizes="(min-width: 768px) 45vw, 100vw"
+              priority
+              className="md:aspect-[3/2]"
+            />
           </motion.div>
         </div>
       </div>
 
-      {/* ── Feature strip ─────────────────────────────────────────────────── */}
-      <div className="mt-10 border-t border-[#DDD5C4] bg-[#EDE8DE] px-6 py-4">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-2">
+      <div className="border-t border-mk-border bg-mk-line px-6 py-4">
+        <div className={`${shellWide} flex flex-wrap items-center gap-x-8 gap-y-2`}>
           {FEATURES.map((f, i) => (
             <span
               key={f}
-              className="font-sans text-[10px] font-medium uppercase tracking-widest text-[#7A7060]"
+              className="text-meta font-medium uppercase tracking-widest text-mk-muted"
             >
-              <span className="mr-2 text-[#DDD5C4]">0{i + 1}</span>
+              <span className="mr-2 text-mk-border">0{i + 1}</span>
               {f}
             </span>
           ))}

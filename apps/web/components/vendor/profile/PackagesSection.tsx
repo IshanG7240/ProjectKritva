@@ -8,6 +8,7 @@ import {
   type PackageUnit,
 } from "@kritva/types/enums";
 import { InlineEditField } from "@/components/vendor/edit/InlineEditField";
+import { buttonVariants } from "@/components/ui/button";
 import {
   formatUnit,
   paisaToRupees,
@@ -34,7 +35,7 @@ function PriceInput({
 
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 font-sans text-sm text-mk-muted">
+      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 font-sans text-meta text-mk-muted">
         ₹
       </span>
       <input
@@ -46,11 +47,8 @@ function PriceInput({
           if (value !== "" && !/^\d*\.?\d*$/.test(value)) return;
           setRaw(value);
           const parsed = rupeesToPaisa(value);
-          if (parsed != null) {
-            onChange(parsed);
-          } else if (value.trim() === "") {
-            onChange(0);
-          }
+          if (parsed != null) onChange(parsed);
+          else if (value.trim() === "") onChange(0);
         }}
         onBlur={() => {
           const parsed = rupeesToPaisa(raw);
@@ -63,7 +61,7 @@ function PriceInput({
           }
         }}
         placeholder="0"
-        className="h-8 w-full rounded-md border border-mk-border bg-white pl-6 pr-2 font-sans text-sm text-mk-ink"
+        className="h-8 w-full rounded-md border border-mk-border bg-white pl-6 pr-2 font-sans text-meta text-mk-ink"
       />
     </div>
   );
@@ -84,14 +82,12 @@ function InclusionsEditor({
         {inclusions.map((item, index) => (
           <li
             key={`${item}-${index}`}
-            className="flex items-center justify-between gap-2 rounded-md bg-[#F8FAFC] px-2 py-1 font-sans text-xs text-mk-ink"
+            className="flex items-center justify-between gap-2 rounded-md bg-mk-surface-2 px-2 py-1 font-sans text-label text-mk-ink"
           >
             <span>{item}</span>
             <button
               type="button"
-              onClick={() =>
-                onChange(inclusions.filter((_, i) => i !== index))
-              }
+              onClick={() => onChange(inclusions.filter((_, i) => i !== index))}
               className="text-mk-muted hover:text-rose-600"
               aria-label="Remove inclusion"
             >
@@ -117,7 +113,7 @@ function InclusionsEditor({
               }
             }}
             placeholder="Add inclusion, press Enter"
-            className="h-8 flex-1 rounded-md border border-mk-border bg-white px-2 font-sans text-sm text-mk-ink"
+            className="h-8 flex-1 rounded-md border border-mk-border bg-white px-2 font-sans text-meta text-mk-ink"
           />
           <button
             type="button"
@@ -127,7 +123,7 @@ function InclusionsEditor({
               onChange([...inclusions, trimmed]);
               setDraft("");
             }}
-            className="rounded-md border border-mk-border px-2 font-sans text-xs font-medium text-mk-ink hover:bg-[#F8FAFC]"
+            className="rounded-md border border-mk-border px-2 font-sans text-label font-medium text-mk-ink hover:bg-mk-surface-2"
           >
             Add
           </button>
@@ -176,10 +172,10 @@ export function PackagesSection({
               <InlineEditField
                 value={pkg.name}
                 onChange={(name) => onPackageChange(pkg.id, { name })}
-                className="font-sans text-base font-semibold text-mk-ink"
+                className="font-sans text-body font-semibold text-mk-ink"
               />
             ) : (
-              <h3 className="font-sans text-base font-semibold text-mk-ink">
+              <h3 className="font-sans text-body font-semibold text-mk-ink">
                 {pkg.name}
               </h3>
             )}
@@ -191,12 +187,12 @@ export function PackagesSection({
                   onPackageChange(pkg.id, { description })
                 }
                 multiline
-                className="font-sans text-sm text-mk-muted"
+                className="font-sans text-meta text-mk-muted"
                 placeholder="Description"
               />
             ) : (
               pkg.description && (
-                <p className="font-sans text-sm text-mk-muted">
+                <p className="font-sans text-meta text-mk-muted">
                   {pkg.description}
                 </p>
               )
@@ -204,7 +200,7 @@ export function PackagesSection({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <p className="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wider text-mk-muted">
+                <p className="mb-1 font-sans text-label font-semibold uppercase tracking-wider text-mk-muted">
                   Price
                 </p>
                 {editable && onPackageChange && !isInactive ? (
@@ -213,7 +209,7 @@ export function PackagesSection({
                     onChange={(price) => onPackageChange(pkg.id, { price })}
                   />
                 ) : (
-                  <p className="font-sans text-sm text-mk-ink">
+                  <p className="font-sans text-meta text-mk-ink">
                     {formatInr(pkg.price)}
                     <span className="text-mk-muted">
                       {" "}
@@ -224,7 +220,7 @@ export function PackagesSection({
               </div>
 
               <div>
-                <p className="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wider text-mk-muted">
+                <p className="mb-1 font-sans text-label font-semibold uppercase tracking-wider text-mk-muted">
                   Unit
                 </p>
                 {editable && onPackageChange && !isInactive ? (
@@ -235,7 +231,7 @@ export function PackagesSection({
                         unit: e.target.value as PackageUnit,
                       })
                     }
-                    className="h-8 w-full rounded-md border border-mk-border bg-white px-2 font-sans text-sm text-mk-ink"
+                    className="h-8 w-full rounded-md border border-mk-border bg-white px-2 font-sans text-meta text-mk-ink"
                   >
                     {PACKAGE_UNITS.map((unit) => (
                       <option key={unit} value={unit}>
@@ -244,7 +240,7 @@ export function PackagesSection({
                     ))}
                   </select>
                 ) : (
-                  <p className="font-sans text-sm capitalize text-mk-ink">
+                  <p className="font-sans text-meta capitalize text-mk-ink">
                     {formatUnit(pkg.unit)}
                   </p>
                 )}
@@ -252,7 +248,7 @@ export function PackagesSection({
 
               {showMinQty && (
                 <div>
-                  <p className="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wider text-mk-muted">
+                  <p className="mb-1 font-sans text-label font-semibold uppercase tracking-wider text-mk-muted">
                     Minimum{" "}
                     {pkg.unit === "per_plate" ? "plates" : "guests"}
                   </p>
@@ -270,10 +266,10 @@ export function PackagesSection({
                               : Math.max(1, Number.parseInt(value, 10) || 1),
                         });
                       }}
-                      className="h-8 w-full rounded-md border border-mk-border bg-white px-2 font-sans text-sm text-mk-ink"
+                      className="h-8 w-full rounded-md border border-mk-border bg-white px-2 font-sans text-meta text-mk-ink"
                     />
                   ) : (
-                    <p className="font-sans text-sm text-mk-ink">
+                    <p className="font-sans text-meta text-mk-ink">
                       {pkg.min_quantity ?? "—"}
                     </p>
                   )}
@@ -284,7 +280,7 @@ export function PackagesSection({
             {((editable && onPackageChange && !isInactive) ||
               (pkg.inclusions?.length ?? 0) > 0) && (
               <div>
-                <p className="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wider text-mk-muted">
+                <p className="mb-1 font-sans text-label font-semibold uppercase tracking-wider text-mk-muted">
                   Inclusions
                 </p>
                 {editable && onPackageChange && !isInactive ? (
@@ -295,7 +291,7 @@ export function PackagesSection({
                     }
                   />
                 ) : (
-                  <ul className="list-inside list-disc font-sans text-sm text-mk-ink">
+                  <ul className="list-inside list-disc font-sans text-meta text-mk-ink">
                     {pkg.inclusions.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
@@ -312,7 +308,7 @@ export function PackagesSection({
                   <button
                     type="button"
                     onClick={() => onReactivatePackage(pkg.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-mk-border px-2.5 py-1.5 font-sans text-xs font-medium text-mk-ink hover:bg-[#F8FAFC]"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-mk-border px-2.5 py-1.5 font-sans text-label font-medium text-mk-ink hover:bg-mk-surface-2"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     Reactivate
@@ -323,7 +319,7 @@ export function PackagesSection({
                   <button
                     type="button"
                     onClick={() => onRemoveLocalPackage(pkg.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 px-2.5 py-1.5 font-sans text-xs font-medium text-rose-700 hover:bg-rose-50"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 px-2.5 py-1.5 font-sans text-label font-medium text-rose-700 hover:bg-rose-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Remove
@@ -334,7 +330,7 @@ export function PackagesSection({
                   <button
                     type="button"
                     onClick={() => onDeactivatePackage(pkg.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 px-2.5 py-1.5 font-sans text-xs font-medium text-rose-700 hover:bg-rose-50"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 px-2.5 py-1.5 font-sans text-label font-medium text-rose-700 hover:bg-rose-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Deactivate
@@ -351,17 +347,14 @@ export function PackagesSection({
   return (
     <section className="space-y-4">
       <div className="flex items-end justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-xl text-mk-ink">Packages &amp; Pricing</h2>
-          <p className="mt-1 font-sans text-sm text-mk-muted">
-            Set package prices in rupees. Stored as paisa on the server.
-          </p>
-        </div>
+        <h2 className="font-sans text-body font-semibold text-mk-ink">
+          Packages
+        </h2>
         {editable && onAddPackage && (
           <button
             type="button"
             onClick={onAddPackage}
-            className="inline-flex items-center gap-1.5 rounded-md bg-mk-navy px-3 py-2 font-sans text-xs font-semibold text-white hover:bg-mk-navy/90"
+            className="inline-flex items-center gap-1.5 rounded-md bg-mk-navy px-3 py-2 font-sans text-label font-semibold text-white hover:bg-mk-navy/90"
           >
             <Plus className="h-3.5 w-3.5" />
             Add package
@@ -371,7 +364,7 @@ export function PackagesSection({
 
       {active.length === 0 ? (
         <div className="rounded-lg border border-dashed border-mk-border px-4 py-8 text-center">
-          <p className="font-sans text-sm text-mk-muted">
+          <p className="font-sans text-meta text-mk-muted">
             {editable
               ? "No active packages yet. Add your first offering below."
               : "No packages listed yet."}
@@ -380,7 +373,7 @@ export function PackagesSection({
             <button
               type="button"
               onClick={onAddPackage}
-              className="mt-3 inline-flex items-center gap-1.5 font-sans text-sm font-medium text-mk-navy"
+              className="mt-3 inline-flex items-center gap-1.5 font-sans text-meta font-medium text-mk-navy"
             >
               <Plus className="h-4 w-4" />
               Add package
@@ -395,7 +388,7 @@ export function PackagesSection({
 
       {editable && inactive.length > 0 && (
         <div className="space-y-3 pt-2">
-          <h3 className="font-sans text-xs font-semibold uppercase tracking-wider text-mk-muted">
+          <h3 className="font-sans text-label font-semibold uppercase tracking-wider text-mk-muted">
             Inactive packages
           </h3>
           {inactive.map((pkg) => renderCard(pkg, true))}
@@ -405,53 +398,51 @@ export function PackagesSection({
   );
 }
 
-/** Read-only cards for public vendor profiles. */
+/** Public profile: clear price + inclusions list (plain.md). */
 export function PublicPackagesList({
   packages,
 }: {
   packages: VendorPackage[];
 }) {
-  if (packages.length === 0) {
-    return (
-      <p className="font-sans text-sm text-mk-muted">No packages listed yet.</p>
-    );
-  }
+  const active = packages.filter((pkg) => pkg.is_active !== false);
+  if (active.length === 0) return null;
 
   return (
-    <div className="space-y-3">
-      {packages.map((pkg) => (
-        <div
+    <div className="space-y-4">
+      {active.map((pkg) => (
+        <article
           key={pkg.id}
-          className="rounded-lg border border-mk-border bg-white p-4"
+          className="rounded-lg border border-mk-border bg-mk-surface p-4"
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="font-sans text-base font-semibold text-mk-ink">
-              {pkg.name}
-            </h3>
-            <p className="font-sans text-sm text-mk-ink">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h3 className="text-subhead text-mk-ink">{pkg.name}</h3>
+            <p className="text-money text-mk-ink">
               {formatInr(pkg.price)}
-              <span className="text-mk-muted"> / {formatUnit(pkg.unit)}</span>
+              <span className="text-meta font-normal text-mk-muted">
+                {" "}
+                / {formatUnit(pkg.unit)}
+              </span>
             </p>
           </div>
-          {pkg.description && (
-            <p className="mt-2 font-sans text-sm text-mk-muted">
-              {pkg.description}
-            </p>
-          )}
-          {packageUnitAllowsMinQuantity(pkg.unit) && pkg.min_quantity != null && (
-            <p className="mt-2 font-sans text-xs text-mk-muted">
-              Minimum {pkg.min_quantity}{" "}
-              {pkg.unit === "per_plate" ? "plates" : "guests"}
-            </p>
-          )}
-          {(pkg.inclusions?.length ?? 0) > 0 && (
-            <ul className="mt-3 list-inside list-disc font-sans text-sm text-mk-ink">
+          {pkg.description ? (
+            <p className="mt-1.5 text-body text-mk-muted">{pkg.description}</p>
+          ) : null}
+          {(pkg.inclusions?.length ?? 0) > 0 ? (
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-body text-mk-ink marker:text-mk-muted">
               {pkg.inclusions.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
-          )}
-        </div>
+          ) : null}
+          <div className="mt-4">
+            <a
+              href="#book"
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              Select
+            </a>
+          </div>
+        </article>
       ))}
     </div>
   );

@@ -10,56 +10,44 @@ interface AboutSectionProps {
 }
 
 export function AboutSection({
-  businessName,
   description,
   editable = false,
   onDescriptionChange,
 }: AboutSectionProps) {
   if (editable && onDescriptionChange) {
     return (
-      <section>
-        <h2 className="font-sans text-lg font-semibold text-mk-ink">
-          About {businessName}
-        </h2>
-        <div className="mt-4">
-          <InlineEditField
-            value={description ?? ""}
-            onChange={onDescriptionChange}
-            multiline
-            rows={8}
-            placeholder="Tell customers about your business, experience, and style."
-            className="min-h-[160px] font-sans text-[15px] leading-relaxed text-mk-muted"
-            inputClassName="text-[15px] leading-relaxed"
-          />
-        </div>
+      <section className="space-y-2">
+        <h2 className="text-heading text-mk-ink">About</h2>
+        <InlineEditField
+          value={description ?? ""}
+          onChange={onDescriptionChange}
+          multiline
+          rows={6}
+          placeholder="Tell customers about your work and style."
+          className="text-body text-mk-ink"
+          inputClassName="text-body leading-snug"
+        />
       </section>
     );
   }
 
-  const paragraphs = description?.trim()
-    ? description.split(/\n\n+/).filter(Boolean)
-    : [];
+  const text = description?.trim();
+  if (!text) return null;
+
+  const paragraphs = text.split(/\n\n+/).filter(Boolean);
 
   return (
-    <section>
-      <h2 className="font-sans text-lg font-semibold text-mk-ink">
-        About {businessName}
-      </h2>
-      <div className="mt-4 flex flex-col gap-4">
-        {paragraphs.length > 0 ? (
-          paragraphs.map((paragraph) => (
-            <p
-              key={paragraph.slice(0, 40)}
-              className="font-sans text-[15px] leading-relaxed text-mk-muted whitespace-pre-line"
-            >
-              {paragraph}
-            </p>
-          ))
-        ) : (
-          <p className="font-sans text-[15px] leading-relaxed text-mk-muted">
-            No description added yet.
+    <section className="space-y-2">
+      <h2 className="text-heading text-mk-ink">About</h2>
+      <div className="space-y-2.5">
+        {paragraphs.map((paragraph) => (
+          <p
+            key={paragraph.slice(0, 48)}
+            className="whitespace-pre-line text-body text-mk-ink"
+          >
+            {paragraph}
           </p>
-        )}
+        ))}
       </div>
     </section>
   );

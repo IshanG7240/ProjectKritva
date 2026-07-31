@@ -6,7 +6,9 @@ import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api-client";
 import { AppNav } from "@/components/layout/app-nav";
 import { consumeReturnTo } from "@/lib/booking-form";
-import { Loader2 } from "lucide-react";
+import { Page } from "@/components/layout/page";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * OAuth callback page — client-side only.
@@ -85,12 +87,18 @@ export default function CallbackPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <AppNav />
-      <div className="flex flex-1 items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <p className="text-sm">Signing you in…</p>
+      <Page width="task" className="flex flex-1 items-center justify-center">
+        <div className="w-full space-y-4" aria-busy="true" aria-live="polite">
+          <Card>
+            <CardContent className="space-y-3">
+              <p className="text-heading text-mk-ink">Signing you in…</p>
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="mt-2 h-11 w-full" />
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      </Page>
     </div>
   );
 }

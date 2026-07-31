@@ -1,10 +1,11 @@
 // Auth domain: users, otp_requests, refresh_tokens, device_tokens
-// Mirrors migrations/001_auth_domain.sql exactly.
+// Mirrors migrations/001_auth_domain.sql + 012_nullable_user_phone.sql.
 
 import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -34,8 +35,7 @@ export const users = pgTable(
     name: varchar("name", { length: 100 }).notNull(),
     role: text("role")
       .notNull()
-      .$type<(typeof ROLES)[number]>()
-      .notNull(),
+      .$type<(typeof ROLES)[number]>(),
     cityId: varchar("city_id", { length: 50 }).notNull().default("delhi-ncr"),
     avatarUrl: text("avatar_url"),
     eventInterests: text("event_interests").array(),
@@ -76,9 +76,7 @@ export const otpRequests = pgTable(
       .default(sql`generate_ulid()`),
     phone: varchar("phone", { length: 15 }).notNull(),
     codeHash: varchar("code_hash", { length: 255 }).notNull(),
-    attempts: text("attempts")
-      .notNull()
-      .default(sql`0`),
+    attempts: integer("attempts").notNull().default(0),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     verified: boolean("verified").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })

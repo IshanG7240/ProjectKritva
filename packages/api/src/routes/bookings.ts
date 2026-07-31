@@ -11,6 +11,8 @@ import {
   counterBookingSchema,
   createBookingInquirySchema,
   declineBookingSchema,
+  deliverBookingSchema,
+  disputeBookingSchema,
   listBookingsQuerySchema,
 } from "@kritva/types";
 import { db } from "@kritva/db/client";
@@ -18,14 +20,26 @@ import {
   bookings,
   bookingEvents,
   bookingMilestones,
+  payments,
   users,
   vendors,
+  vendorAvailability,
   vendorPackages,
 } from "@kritva/db";
 import type { BookingPackageDetail, PackageUnit } from "@kritva/types";
 import { dispatch as dispatchNotification } from "@kritva/notifications/dispatcher";
-import { vendorDiscoverableWhere } from "../lib/vendor-discoverability.js";
+import { config } from "../config.js";
+import { resolveCommissionBps } from "../lib/commission.js";
+import {
+  isMockVendor,
+  vendorDiscoverableWhere,
+} from "../lib/vendor-discoverability.js";
+import { accountStatus } from "../middleware/account-status.js";
 import { supabaseAuth, type AuthVariables } from "../middleware/supabase-auth.js";
+
+export const bookingsRouter = new Hono<{ Variables: AuthVariables }>();
+
+bookingsRouter.use("*", supabaseAuth(), accountStatus());
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -43,6 +57,9 @@ const bookingListFields = {
   counter_amount: bookings.counterAmount,
   counter_message: bookings.counterMessage,
   decline_reason: bookings.declineReason,
+  commission_bps: bookings.commissionBps,
+  created_at: bookings.createdAt,
+  updated_at: bookings.updatedAt,
   vendor_business_name: vendors.businessName,
   customer_display_name: users.name,
 };
@@ -65,11 +82,22 @@ function mapBookingListRow(row: {
   counter_amount: number | null;
   counter_message: string | null;
   decline_reason: string | null;
+  commission_bps: number | null;
+  created_at: Date | string;
+  updated_at: Date | string;
   vendor_business_name: string;
   customer_display_name: string;
 }) {
   return {
     ...row,
+    created_at:
+      row.created_at instanceof Date
+        ? row.created_at.toISOString()
+        : row.created_at,
+    updated_at:
+      row.updated_at instanceof Date
+        ? row.updated_at.toISOString()
+        : row.updated_at,
     customer_first_name: customerFirstName(row.customer_display_name),
   };
 }
@@ -92,15 +120,24 @@ async function seedFullPaymentMilestone(
   bookingId: string,
   totalAmount: number,
 ) {
-  await tx.insert(bookingMilestones).values({
-    id: ulid(),
-    bookingId,
-    name: "advance",
-    label: "Full Payment",
-    amount: totalAmount,
-    percentage: "100.00",
-    paymentStatus: "pending",
-  });
+  await tx
+    .insert(bookingMilestones)
+    .values({
+      id: ulid(),
+      bookingId,
+      name: "advance",
+      label: "Full Payment",
+      amount: totalAmount,
+      percentage: "100.00",
+      paymentStatus: "pending",
+    })
+    .onConflictDoNothing({
+      target: [bookingMilestones.bookingId, bookingMilestones.name],
+    });
+}
+
+function webBaseUrl(): string {
+  return process.env.WEB_BASE_URL?.replace(/\/$/, "") ?? "";
 }
 
 async function notifyBookingAccepted(params: {
@@ -109,24 +146,79 @@ async function notifyBookingAccepted(params: {
   vendorId: string;
   totalAmount: number;
 }) {
+  const [[customer], [vendor]] = await Promise.all([
+    db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, params.customerId))
+      .limit(1),
+    db
+      .select({ businessName: vendors.businessName })
+      .from(vendors)
+      .where(eq(vendors.id, params.vendorId))
+      .limit(1),
+  ]);
+
+  const base = webBaseUrl();
   await dispatchNotification({
     kind: "booking_vendor_accepted",
     booking_id: params.bookingId,
     customer_id: params.customerId,
     vendor_id: params.vendorId,
     total_amount: params.totalAmount,
+    to_email: customer?.email ?? null,
+    booking_url: base
+      ? `${base}/bookings/${params.bookingId}`
+      : `/bookings/${params.bookingId}`,
+    vendor_business_name: vendor?.businessName ?? null,
   });
 }
 
-// Router typed with AuthVariables so c.var.user is available downstream
-const bookingsRouter = new Hono<{ Variables: AuthVariables }>();
+async function notifyBookingInquiryCreated(params: {
+  bookingId: string;
+  customerId: string;
+  vendorId: string;
+  eventDate: string;
+  eventType: string;
+  totalAmount: number;
+}) {
+  const [[owner], [customer]] = await Promise.all([
+    db
+      .select({ email: users.email })
+      .from(vendors)
+      .innerJoin(users, eq(users.id, vendors.userId))
+      .where(eq(vendors.id, params.vendorId))
+      .limit(1),
+    db
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, params.customerId))
+      .limit(1),
+  ]);
+
+  const base = webBaseUrl();
+  await dispatchNotification({
+    kind: "booking_inquiry_created",
+    booking_id: params.bookingId,
+    customer_id: params.customerId,
+    vendor_id: params.vendorId,
+    event_date: params.eventDate,
+    event_type: params.eventType,
+    total_amount: params.totalAmount,
+    to_email: owner?.email ?? null,
+    booking_url: base
+      ? `${base}/vendor/leads/${params.bookingId}`
+      : `/vendor/leads/${params.bookingId}`,
+    customer_name: customer?.name ?? null,
+  });
+}
 
 /**
  * POST /v1/bookings
  * Creates a booking inquiry with server-built package_details snapshots.
  * Milestones are seeded on vendor accept (Phase 2), not at inquiry.
  */
-bookingsRouter.post("/", supabaseAuth(), async (c) => {
+bookingsRouter.post("/", async (c) => {
   const body = await c.req.json();
   const parsed = createBookingInquirySchema.safeParse(body);
 
@@ -150,7 +242,7 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
     event_date,
     event_type,
     guest_count,
-    total_amount,
+    total_amount: clientTotalAmount,
     notes,
     city_id,
     event_id,
@@ -161,6 +253,8 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
     .select({
       id: vendors.id,
       verificationStatus: vendors.verificationStatus,
+      isDemo: vendors.isDemo,
+      slug: vendors.slug,
     })
     .from(vendors)
     .where(and(eq(vendors.id, vendor_id), vendorDiscoverableWhere()))
@@ -196,6 +290,24 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
       },
       403,
     );
+  }
+
+  // §3.4 guard: simulated mode may only book demo / mock seed vendors.
+  if (config.PAYMENT_MODE === "simulated") {
+    const demoOk = vendor.isDemo || isMockVendor(vendor.slug);
+    if (!demoOk) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "DEMO_VENDOR_REQUIRED",
+            message:
+              "Simulated payment mode only allows bookings with demo vendors.",
+          },
+        },
+        403,
+      );
+    }
   }
 
   const packageIds = packageSelections.map((detail) => detail.package_id);
@@ -272,6 +384,28 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
     });
   }
 
+  const expectedTotal = packageSnapshots.reduce(
+    (sum, pkg) => sum + pkg.price_at_booking * pkg.quantity,
+    0,
+  );
+
+  if (
+    clientTotalAmount != null &&
+    clientTotalAmount !== expectedTotal
+  ) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "TOTAL_MISMATCH",
+          message:
+            "total_amount does not match the sum of package prices × quantities.",
+        },
+      },
+      400,
+    );
+  }
+
   const booking = await db.transaction(async (tx) => {
     const bookingId = ulid();
 
@@ -286,7 +420,7 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
         eventDate: event_date,
         eventType: event_type,
         guestCount: guest_count ?? null,
-        totalAmount: total_amount,
+        totalAmount: expectedTotal,
         notes: notes ?? null,
         cityId: city_id,
         status: "inquiry",
@@ -311,6 +445,15 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
     return newBooking;
   });
 
+  void notifyBookingInquiryCreated({
+    bookingId: booking.id,
+    customerId,
+    vendorId: vendor_id,
+    eventDate: event_date,
+    eventType: event_type,
+    totalAmount: expectedTotal,
+  }).catch(() => {});
+
   return c.json({ data: { booking }, error: null }, 201);
 });
 
@@ -319,7 +462,7 @@ bookingsRouter.post("/", supabaseAuth(), async (c) => {
  * Vendor-only: inquiry → vendor_accepted.
  * Seeds a single full-payment milestone and notifies the customer.
  */
-bookingsRouter.patch("/:id/accept", supabaseAuth(), async (c) => {
+bookingsRouter.patch("/:id/accept", async (c) => {
   const bookingId = c.req.param("id");
   const actorUserId = c.get("user").id;
 
@@ -384,7 +527,7 @@ bookingsRouter.patch("/:id/accept", supabaseAuth(), async (c) => {
     );
   }
 
-  // 4. State guard — can only accept an inquiry
+  // 4. Soft state check — authoritative guard is the UPDATE WHERE below
   if (booking.status !== "inquiry") {
     return c.json(
       {
@@ -398,12 +541,23 @@ bookingsRouter.patch("/:id/accept", supabaseAuth(), async (c) => {
     );
   }
 
-  // 5. Transition, milestone seed, and audit log in one transaction
-  await db.transaction(async (tx) => {
-    await tx
+  // 5. Transition, commission snapshot, milestone seed, and audit log
+  const transitioned = await db.transaction(async (tx) => {
+    const commissionBps = await resolveCommissionBps(tx, vendor.id);
+
+    const [updated] = await tx
       .update(bookings)
-      .set({ status: "vendor_accepted" })
-      .where(eq(bookings.id, bookingId));
+      .set({ status: "vendor_accepted", commissionBps })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.vendorId, vendor.id),
+          eq(bookings.status, "inquiry"),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (!updated) return false;
 
     await seedFullPaymentMilestone(tx, bookingId, booking.totalAmount);
 
@@ -414,9 +568,27 @@ bookingsRouter.patch("/:id/accept", supabaseAuth(), async (c) => {
       toStatus: "vendor_accepted",
       actorId: actorUserId,
       actorRole: "vendor",
-      metadata: { total_amount: booking.totalAmount },
+      metadata: {
+        total_amount: booking.totalAmount,
+        commission_bps: commissionBps,
+      },
     });
+
+    return true;
   });
+
+  if (!transitioned) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message: "Booking state changed during accept. Expected 'inquiry'.",
+        },
+      },
+      409,
+    );
+  }
 
   await notifyBookingAccepted({
     bookingId,
@@ -441,7 +613,7 @@ bookingsRouter.patch("/:id/accept", supabaseAuth(), async (c) => {
  * PATCH /v1/bookings/:id/decline
  * Vendor-only: inquiry → vendor_declined with required reason.
  */
-bookingsRouter.patch("/:id/decline", supabaseAuth(), async (c) => {
+bookingsRouter.patch("/:id/decline", async (c) => {
   const bookingId = c.req.param("id");
   const actorUserId = c.get("user").id;
 
@@ -531,14 +703,23 @@ bookingsRouter.patch("/:id/decline", supabaseAuth(), async (c) => {
 
   const { decline_reason } = parsed.data;
 
-  await db.transaction(async (tx) => {
-    await tx
+  const transitioned = await db.transaction(async (tx) => {
+    const [updated] = await tx
       .update(bookings)
       .set({
         status: "vendor_declined",
         declineReason: decline_reason,
       })
-      .where(eq(bookings.id, bookingId));
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.vendorId, vendor.id),
+          eq(bookings.status, "inquiry"),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (!updated) return false;
 
     await tx.insert(bookingEvents).values({
       id: ulid(),
@@ -549,7 +730,22 @@ bookingsRouter.patch("/:id/decline", supabaseAuth(), async (c) => {
       actorRole: "vendor",
       metadata: { decline_reason },
     });
+
+    return true;
   });
+
+  if (!transitioned) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message: "Booking state changed during decline. Expected 'inquiry'.",
+        },
+      },
+      409,
+    );
+  }
 
   return c.json(
     {
@@ -567,7 +763,7 @@ bookingsRouter.patch("/:id/decline", supabaseAuth(), async (c) => {
  * PATCH /v1/bookings/:id/counter
  * Vendor-only: inquiry → vendor_countered with counter amount and optional message.
  */
-bookingsRouter.patch("/:id/counter", supabaseAuth(), async (c) => {
+bookingsRouter.patch("/:id/counter", async (c) => {
   const bookingId = c.req.param("id");
   const actorUserId = c.get("user").id;
 
@@ -657,15 +853,24 @@ bookingsRouter.patch("/:id/counter", supabaseAuth(), async (c) => {
 
   const { counter_amount, counter_message } = parsed.data;
 
-  await db.transaction(async (tx) => {
-    await tx
+  const transitioned = await db.transaction(async (tx) => {
+    const [updated] = await tx
       .update(bookings)
       .set({
         status: "vendor_countered",
         counterAmount: counter_amount,
         counterMessage: counter_message ?? null,
       })
-      .where(eq(bookings.id, bookingId));
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.vendorId, vendor.id),
+          eq(bookings.status, "inquiry"),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (!updated) return false;
 
     await tx.insert(bookingEvents).values({
       id: ulid(),
@@ -679,7 +884,22 @@ bookingsRouter.patch("/:id/counter", supabaseAuth(), async (c) => {
         counter_message: counter_message ?? null,
       },
     });
+
+    return true;
   });
+
+  if (!transitioned) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message: "Booking state changed during counter. Expected 'inquiry'.",
+        },
+      },
+      409,
+    );
+  }
 
   return c.json(
     {
@@ -698,7 +918,7 @@ bookingsRouter.patch("/:id/counter", supabaseAuth(), async (c) => {
  * Customer-only: vendor_countered → vendor_accepted.
  * Locks total_amount to counter_amount, seeds milestone, notifies customer.
  */
-bookingsRouter.patch("/:id/accept-counter", supabaseAuth(), async (c) => {
+bookingsRouter.patch("/:id/accept-counter", async (c) => {
   const bookingId = c.req.param("id");
   const actorUserId = c.get("user").id;
 
@@ -770,14 +990,26 @@ bookingsRouter.patch("/:id/accept-counter", supabaseAuth(), async (c) => {
   const counterAmount = booking.counterAmount;
   const previousTotal = booking.totalAmount;
 
-  await db.transaction(async (tx) => {
-    await tx
+  const transitioned = await db.transaction(async (tx) => {
+    const commissionBps = await resolveCommissionBps(tx, booking.vendorId);
+
+    const [updated] = await tx
       .update(bookings)
       .set({
         status: "vendor_accepted",
         totalAmount: counterAmount,
+        commissionBps,
       })
-      .where(eq(bookings.id, bookingId));
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.customerId, actorUserId),
+          eq(bookings.status, "vendor_countered"),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (!updated) return false;
 
     await seedFullPaymentMilestone(tx, bookingId, counterAmount);
 
@@ -791,9 +1023,26 @@ bookingsRouter.patch("/:id/accept-counter", supabaseAuth(), async (c) => {
       metadata: {
         counter_amount: counterAmount,
         previous_total_amount: previousTotal,
+        commission_bps: commissionBps,
       },
     });
+
+    return true;
   });
+
+  if (!transitioned) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message:
+            "Booking state changed during accept-counter. Expected 'vendor_countered'.",
+        },
+      },
+      409,
+    );
+  }
 
   await notifyBookingAccepted({
     bookingId,
@@ -817,9 +1066,11 @@ bookingsRouter.patch("/:id/accept-counter", supabaseAuth(), async (c) => {
 
 /**
  * PATCH /v1/bookings/:id/cancel
- * Pre-payment cancellation by customer or vendor (vendor_accepted only for vendors).
+ * Pre-capture cancellation by customer or vendor.
+ * payment_pending allowed so abandoned checkout can free the booking/date;
+ * initiated payments are left as abandoned (no refund invented here).
  */
-bookingsRouter.patch("/:id/cancel", supabaseAuth(), async (c) => {
+bookingsRouter.patch("/:id/cancel", async (c) => {
   const bookingId = c.req.param("id");
   const actorUserId = c.get("user").id;
 
@@ -889,8 +1140,9 @@ bookingsRouter.patch("/:id/cancel", supabaseAuth(), async (c) => {
     "inquiry",
     "vendor_countered",
     "vendor_accepted",
+    "payment_pending",
   ]);
-  const vendorCancelStatuses = new Set(["vendor_accepted"]);
+  const vendorCancelStatuses = new Set(["vendor_accepted", "payment_pending"]);
 
   const allowedStatuses = isCustomer
     ? customerCancelStatuses
@@ -913,15 +1165,66 @@ bookingsRouter.patch("/:id/cancel", supabaseAuth(), async (c) => {
     );
   }
 
+  // Block cancel while a payable order exists — capture can race with cancel
+  // and leave the customer charged without escrow.
+  if (booking.status === "payment_pending") {
+    const [openPayment] = await db
+      .select({ id: payments.id })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.bookingId, bookingId),
+          eq(payments.status, "initiated"),
+        ),
+      )
+      .limit(1);
+
+    if (openPayment) {
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: "INVALID_STATE_TRANSITION",
+            message:
+              "Cannot cancel while a payment is in progress. Complete or abandon checkout first; contact support if you were charged.",
+          },
+        },
+        409,
+      );
+    }
+  }
+
   const { reason } = parsed.data;
   const actorRole = isVendor ? "vendor" : "customer";
   const fromStatus = booking.status;
+  const allowedStatusList = [...allowedStatuses] as Array<
+    (typeof bookings.$inferSelect)["status"]
+  >;
+  const ownershipWhere = isVendor
+    ? eq(bookings.vendorId, vendor!.id)
+    : eq(bookings.customerId, actorUserId);
 
-  await db.transaction(async (tx) => {
-    await tx
+  const transitioned = await db.transaction(async (tx) => {
+    const [updated] = await tx
       .update(bookings)
       .set({ status: "cancelled" })
-      .where(eq(bookings.id, bookingId));
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          inArray(bookings.status, allowedStatusList),
+          ownershipWhere,
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (!updated) return false;
+
+    // Free date blocked by this booking (no-op if none). Initiated payments stay.
+    if (fromStatus === "payment_pending") {
+      await tx
+        .delete(vendorAvailability)
+        .where(eq(vendorAvailability.bookingId, bookingId));
+    }
 
     await tx.insert(bookingEvents).values({
       id: ulid(),
@@ -932,7 +1235,22 @@ bookingsRouter.patch("/:id/cancel", supabaseAuth(), async (c) => {
       actorRole,
       metadata: { reason: reason ?? null },
     });
+
+    return true;
   });
+
+  if (!transitioned) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message: "Booking state changed during cancel.",
+        },
+      },
+      409,
+    );
+  }
 
   return c.json(
     {
@@ -947,11 +1265,384 @@ bookingsRouter.patch("/:id/cancel", supabaseAuth(), async (c) => {
 });
 
 /**
+ * POST /v1/bookings/:id/deliver
+ * Vendor-only: payment_held|in_progress → completed with gallery proof.
+ */
+bookingsRouter.post("/:id/deliver", async (c) => {
+  const bookingId = c.req.param("id");
+  const actorUserId = c.get("user").id;
+
+  const body = await c.req.json();
+  const parsed = deliverBookingSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Request validation failed.",
+          fields: parsed.error.flatten().fieldErrors,
+        },
+      },
+      400,
+    );
+  }
+
+  const [vendor] = await db
+    .select({ id: vendors.id, businessName: vendors.businessName })
+    .from(vendors)
+    .where(eq(vendors.userId, actorUserId))
+    .limit(1);
+
+  if (!vendor) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "No vendor profile is associated with this account.",
+        },
+      },
+      403,
+    );
+  }
+
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      vendorId: bookings.vendorId,
+      customerId: bookings.customerId,
+      status: bookings.status,
+      totalAmount: bookings.totalAmount,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+
+  if (!booking) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "NOT_FOUND",
+          message: `Booking '${bookingId}' was not found.`,
+        },
+      },
+      404,
+    );
+  }
+
+  if (booking.vendorId !== vendor.id) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "You do not have permission to act on this booking.",
+        },
+      },
+      403,
+    );
+  }
+
+  if (booking.status !== "payment_held" && booking.status !== "in_progress") {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message: `Cannot deliver a booking with status '${booking.status}'. Expected 'payment_held' or 'in_progress'.`,
+        },
+      },
+      409,
+    );
+  }
+
+  const { gallery_url, note } = parsed.data;
+  const fromStatus = booking.status;
+
+  const transitioned = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(bookings)
+      .set({ status: "completed", updatedAt: new Date() })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          eq(bookings.vendorId, vendor.id),
+          inArray(bookings.status, ["payment_held", "in_progress"]),
+        ),
+      )
+      .returning({ id: bookings.id, status: bookings.status });
+
+    if (!updated) return null;
+
+    await tx.insert(bookingEvents).values({
+      id: ulid(),
+      bookingId,
+      fromStatus,
+      toStatus: "completed",
+      actorId: actorUserId,
+      actorRole: "vendor",
+      metadata: {
+        gallery_url,
+        note: note ?? null,
+      },
+    });
+
+    return updated;
+  });
+
+  if (!transitioned) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message:
+            "Booking state changed during deliver. Expected 'payment_held' or 'in_progress'.",
+        },
+      },
+      409,
+    );
+  }
+
+  const [customer] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, booking.customerId))
+    .limit(1);
+
+  const base = webBaseUrl();
+  void dispatchNotification({
+    kind: "booking_completed",
+    booking_id: bookingId,
+    customer_id: booking.customerId,
+    vendor_id: booking.vendorId,
+    total_amount: booking.totalAmount,
+    to_email: customer?.email ?? null,
+    booking_url: base
+      ? `${base}/bookings/${bookingId}`
+      : `/bookings/${bookingId}`,
+    gallery_url,
+    vendor_business_name: vendor.businessName,
+  }).catch(() => {});
+
+  return c.json(
+    {
+      data: {
+        booking_id: bookingId,
+        status: "completed",
+        gallery_url,
+        note: note ?? null,
+      },
+      error: null,
+    },
+    200,
+  );
+});
+
+/**
+ * POST /v1/bookings/:id/dispute
+ * Customer (or vendor): payment_held|completed → disputed. Money stays held.
+ * Customer release path refuses disputed status (see payments/release).
+ */
+bookingsRouter.post("/:id/dispute", async (c) => {
+  const bookingId = c.req.param("id");
+  const actorUserId = c.get("user").id;
+
+  const body = await c.req.json();
+  const parsed = disputeBookingSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Request validation failed.",
+          fields: parsed.error.flatten().fieldErrors,
+        },
+      },
+      400,
+    );
+  }
+
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      vendorId: bookings.vendorId,
+      customerId: bookings.customerId,
+      status: bookings.status,
+      totalAmount: bookings.totalAmount,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+
+  if (!booking) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "NOT_FOUND",
+          message: `Booking '${bookingId}' was not found.`,
+        },
+      },
+      404,
+    );
+  }
+
+  const [vendorProfile] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(eq(vendors.userId, actorUserId))
+    .limit(1);
+
+  const isCustomer = booking.customerId === actorUserId;
+  const isVendor = !!vendorProfile && booking.vendorId === vendorProfile.id;
+
+  if (!isCustomer && !isVendor) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "You do not have permission to dispute this booking.",
+        },
+      },
+      403,
+    );
+  }
+
+  if (booking.status !== "payment_held" && booking.status !== "completed") {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message: `Cannot dispute a booking with status '${booking.status}'. Expected 'payment_held' or 'completed'.`,
+        },
+      },
+      409,
+    );
+  }
+
+  const { reason, description, evidence_urls } = parsed.data;
+  const fromStatus = booking.status;
+  const actorRole = isCustomer ? "customer" : "vendor";
+
+  const transitioned = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(bookings)
+      .set({ status: "disputed", updatedAt: new Date() })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          inArray(bookings.status, ["payment_held", "completed"]),
+        ),
+      )
+      .returning({ id: bookings.id });
+
+    if (!updated) return false;
+
+    await tx.insert(bookingEvents).values({
+      id: ulid(),
+      bookingId,
+      fromStatus,
+      toStatus: "disputed",
+      actorId: actorUserId,
+      actorRole,
+      metadata: {
+        reason,
+        description,
+        evidence_urls: evidence_urls ?? null,
+      },
+    });
+
+    return true;
+  });
+
+  if (!transitioned) {
+    return c.json(
+      {
+        data: null,
+        error: {
+          code: "INVALID_STATE_TRANSITION",
+          message:
+            "Booking state changed during dispute. Expected 'payment_held' or 'completed'.",
+        },
+      },
+      409,
+    );
+  }
+
+  const [[customer], [vendorOwner]] = await Promise.all([
+    db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, booking.customerId))
+      .limit(1),
+    db
+      .select({ email: users.email })
+      .from(vendors)
+      .innerJoin(users, eq(users.id, vendors.userId))
+      .where(eq(vendors.id, booking.vendorId))
+      .limit(1),
+  ]);
+
+  const base = webBaseUrl();
+  const customerUrl = base
+    ? `${base}/bookings/${bookingId}`
+    : `/bookings/${bookingId}`;
+  const vendorUrl = base
+    ? `${base}/vendor/leads/${bookingId}`
+    : `/vendor/leads/${bookingId}`;
+
+  void Promise.all([
+    dispatchNotification({
+      kind: "booking_disputed",
+      booking_id: bookingId,
+      customer_id: booking.customerId,
+      vendor_id: booking.vendorId,
+      total_amount: booking.totalAmount,
+      to_email: customer?.email ?? null,
+      booking_url: customerUrl,
+      reason,
+      description,
+      recipient_role: "customer",
+    }),
+    dispatchNotification({
+      kind: "booking_disputed",
+      booking_id: bookingId,
+      customer_id: booking.customerId,
+      vendor_id: booking.vendorId,
+      total_amount: booking.totalAmount,
+      to_email: vendorOwner?.email ?? null,
+      booking_url: vendorUrl,
+      reason,
+      description,
+      recipient_role: "vendor",
+    }),
+  ]).catch(() => {});
+
+  return c.json(
+    {
+      data: {
+        booking_id: bookingId,
+        status: "disputed",
+        reason,
+      },
+      error: null,
+    },
+    200,
+  );
+});
+
+/**
  * GET /v1/bookings
  * Lists bookings for the authenticated user as customer or vendor.
  * Supports status filter, cursor pagination, and explicit ?role=.
  */
-bookingsRouter.get("/", supabaseAuth(), async (c) => {
+bookingsRouter.get("/", async (c) => {
   const userId = c.get("user").id;
 
   const parsed = listBookingsQuerySchema.safeParse({
@@ -1058,7 +1749,7 @@ const RECENT_BOOKING_EVENTS_LIMIT = 20;
  * GET /v1/bookings/:id
  * Returns full booking detail for the owning customer or vendor.
  */
-bookingsRouter.get("/:id", supabaseAuth(), async (c) => {
+bookingsRouter.get("/:id", async (c) => {
   const bookingId = c.req.param("id");
   const actorUserId = c.get("user").id;
 
@@ -1079,6 +1770,8 @@ bookingsRouter.get("/:id", supabaseAuth(), async (c) => {
       counter_amount: bookings.counterAmount,
       counter_message: bookings.counterMessage,
       decline_reason: bookings.declineReason,
+      commission_bps: bookings.commissionBps,
+      escrow_outcome: bookings.escrowOutcome,
       created_at: bookings.createdAt,
       updated_at: bookings.updatedAt,
       vendor_business_name: vendors.businessName,
@@ -1171,6 +1864,8 @@ bookingsRouter.get("/:id", supabaseAuth(), async (c) => {
     counter_amount: row.counter_amount,
     counter_message: row.counter_message,
     decline_reason: row.decline_reason,
+    commission_bps: row.commission_bps,
+    escrow_outcome: row.escrow_outcome,
     vendor_business_name: row.vendor_business_name,
     customer_display_name: row.customer_display_name,
     customer_first_name: customerFirstName(row.customer_display_name),
@@ -1202,5 +1897,3 @@ bookingsRouter.get("/:id", supabaseAuth(), async (c) => {
 
   return c.json({ data: { booking }, error: null }, 200);
 });
-
-export { bookingsRouter };

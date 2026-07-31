@@ -41,6 +41,7 @@ yarn-error.log*
 docs/
 *.md
 !README.md
+!docs_v3/**
 
 # Cursor / Agents Config
 .cursor

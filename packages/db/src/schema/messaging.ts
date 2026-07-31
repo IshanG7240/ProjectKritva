@@ -1,5 +1,5 @@
 // Comms domain: conversations, messages, notification_preferences
-// Mirrors migrations/005_comms_domain.sql exactly.
+// Mirrors migrations/005_comms_domain.sql (partial indexes noted below).
 
 import { sql } from "drizzle-orm";
 import {
@@ -73,6 +73,7 @@ export const messages = pgTable(
     index("idx_msg_conversation").on(t.conversationId),
     index("idx_msg_conversation_created").on(t.conversationId, t.createdAt),
     index("idx_msg_sender").on(t.senderId),
+    // SQL: WHERE read_at IS NULL (partial). Drizzle index matches columns.
     index("idx_msg_unread").on(t.conversationId, t.readAt),
   ],
 );

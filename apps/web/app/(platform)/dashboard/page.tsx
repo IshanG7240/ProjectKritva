@@ -1,12 +1,10 @@
 "use client";
 
 /**
- * Customer dashboard — protected for role: customer.
- * Shows bookings awaiting payment, handles Razorpay escrow checkout,
- * and lets the customer release escrowed funds to the vendor after the event.
+ * Customer dashboard — attention-first.
+ * Needs attention (never collapsible) → Active → Past (collapsed).
  */
 
-import type { ReactNode } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { useRequireAuth } from "@/hooks/use-require-auth";
@@ -15,13 +13,25 @@ import { apiClient } from "@/lib/api-client";
 import {
   checkoutBookingPayment,
   PaymentCancelledError,
+  SimulatedCheckoutRedirectError,
 } from "@/lib/razorpay-checkout";
 import {
   formatEventDate,
   formatInr,
-  formatPackageSummary,
 } from "@/lib/booking-form";
-import { AppNav } from "@/components/layout/app-nav";
+import {
+  CUSTOMER_ATTENTION_STATUSES,
+  CUSTOMER_CONFIRMED_STATUSES,
+  CUSTOMER_DONE_STATUSES,
+  CUSTOMER_WAITING_STATUSES,
+  formatEventTypeLabel,
+  getBookingStatusAction,
+  getBookingStatusLabel,
+} from "@/lib/booking-status";
+import { toast } from "@/components/ui/toast";
+import { Button } from "@/components/ui/button";
+import { Page, PageHeader } from "@/components/layout/page";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -31,40 +41,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import type { BookingListItem } from "@/components/booking/types";
 
-interface PackageDetail {
-  package_id: string;
-  name: string;
-  quantity: number;
-  price_at_booking: number;
-}
-
-interface Booking {
-  id: string;
-  vendor_id: string;
-  event_date: string;
-  event_type: string;
-  total_amount: number;
-  status: string;
-  package_details?: PackageDetail[];
-  counter_amount?: number | null;
-  counter_message?: string | null;
-}
-
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  wedding: "Wedding",
-  corporate: "Corporate",
-  birthday: "Birthday",
-  social: "Social",
-  other: "Other",
-};
-
-function formatEventType(type: string): string {
-  return EVENT_TYPE_LABELS[type] ?? type.replace(/_/g, " ");
-}
-
-async function fetchBookings(): Promise<Booking[]> {
-  const res = await apiClient.get<Booking[]>("/v1/bookings?role=customer");
+async function fetchBookings(): Promise<BookingListItem[]> {
+  const res = await apiClient.get<BookingListItem[]>(
+    "/v1/bookings?role=customer",
+  );
   if (res.error) throw new Error(res.error.message);
   return Array.isArray(res.data) ? res.data : [];
 }
@@ -90,199 +74,152 @@ async function releaseFunds(bookingId: string): Promise<void> {
   if (res.error) throw new Error(res.error.message);
 }
 
-function SectionCard({
-  title,
-  emptyMessage,
-  children,
-}: {
-  title: string;
-  emptyMessage: string;
-  children: ReactNode;
-}) {
-  const hasRows = Array.isArray(children) ? children.length > 0 : !!children;
+const HELD_ROW_STATUSES = new Set(["payment_held", "in_progress"]);
 
-  return (
-    <section>
-      <h2 className="font-sans text-base font-semibold text-mk-ink">{title}</h2>
-      {!hasRows ? (
-        <p className="mt-2 font-sans text-sm text-mk-muted">{emptyMessage}</p>
-      ) : (
-        <ul className="mt-3 overflow-hidden rounded-lg border border-mk-border bg-white">
-          {children}
-        </ul>
-      )}
-    </section>
-  );
-}
+type RowAction = {
+  label: string;
+  onClick: () => void;
+  pending: boolean;
+};
 
-function CounterOfferRow({
+/**
+ * One row per booking. Whole row is tappable (View); the right slot carries at
+ * most one primary action button (or nothing — the row itself opens details).
+ */
+function BookingRow({
   booking,
-  onAccept,
-  onDecline,
-  isAccepting,
-  isDeclining,
-  actionError,
+  action,
+  meta,
 }: {
-  booking: Booking;
-  onAccept: () => void;
-  onDecline: () => void;
-  isAccepting: boolean;
-  isDeclining: boolean;
-  actionError: string | null;
+  booking: BookingListItem;
+  action?: RowAction;
+  meta?: string;
 }) {
-  const packageSummary = formatPackageSummary(booking.package_details);
-  const counterAmount = booking.counter_amount ?? 0;
-  const priceDiff = counterAmount - booking.total_amount;
-  const isHigher = priceDiff > 0;
+  const isHeld = HELD_ROW_STATUSES.has(booking.status);
+  const amount =
+    booking.status === "vendor_countered" && booking.counter_amount != null
+      ? booking.counter_amount
+      : booking.total_amount;
+
+  const eventLabel = `${formatEventTypeLabel(booking.event_type)} · ${formatEventDate(booking.event_date)}`;
 
   return (
-    <li className="border-b border-mk-border last:border-b-0 px-4 py-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2">
-          <p className="font-sans text-sm font-semibold text-mk-ink">
-            {formatEventType(booking.event_type)} ·{" "}
-            {formatEventDate(booking.event_date)}
+    <li className="relative border-b border-mk-border last:border-b-0 hover:bg-mk-surface-2">
+      <Link
+        href={`/bookings/${booking.id}`}
+        aria-label={`Open booking: ${eventLabel}`}
+        className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      />
+      <div className="pointer-events-none relative z-10 grid min-h-14 grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 sm:gap-4">
+        <div className="min-w-0">
+          <p className="truncate text-body font-medium text-mk-ink">
+            {eventLabel}
           </p>
-          <p className="font-sans text-xs text-mk-muted">{packageSummary}</p>
-
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-sans text-sm">
-            <span className="text-mk-muted">
-              Your budget:{" "}
-              <span className="font-medium text-mk-ink tabular-nums">
-                {formatInr(booking.total_amount)}
-              </span>
-            </span>
-            <span className="text-mk-muted">→</span>
-            <span className="text-mk-muted">
-              Counter-offer:{" "}
-              <span className="font-semibold text-mk-ink tabular-nums">
-                {formatInr(counterAmount)}
-              </span>
-            </span>
-            {priceDiff !== 0 && (
-              <span
-                className={`font-sans text-xs font-medium tabular-nums ${
-                  isHigher ? "text-amber-700" : "text-emerald-700"
-                }`}
-              >
-                ({isHigher ? "+" : ""}
-                {formatInr(priceDiff)})
-              </span>
-            )}
-          </div>
-
-          {booking.counter_message?.trim() && (
-            <blockquote className="rounded-md border border-mk-border bg-[#FAF7F0] px-3 py-2 font-sans text-xs leading-relaxed text-mk-ink">
-              <span className="font-medium text-mk-muted">Vendor note: </span>
-              {booking.counter_message.trim()}
-            </blockquote>
-          )}
+          <p className="truncate text-meta text-mk-muted">
+            {booking.vendor_business_name ?? ""}
+            {meta ? ` · ${meta}` : ""}
+          </p>
         </div>
 
-        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-end">
-          <button
-            type="button"
-            onClick={onAccept}
-            disabled={isAccepting || isDeclining}
-            className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-mk-navy px-3 font-sans text-xs font-medium text-white transition-colors hover:bg-[#162C47] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isAccepting ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Accepting…
-              </>
-            ) : (
-              "Accept counter"
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onDecline}
-            disabled={isAccepting || isDeclining}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-red-200 bg-white px-3 font-sans text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Decline
-          </button>
-          {actionError && (
-            <p className="font-sans text-[10px] leading-tight text-red-600">
-              {actionError}
-            </p>
+        <p
+          className={cn(
+            "text-right text-money tabular-nums",
+            isHeld ? "text-mk-navy" : "text-mk-ink",
           )}
-          <Link
-            href={`/bookings/${booking.id}`}
-            className="font-sans text-[10px] text-mk-navy hover:underline"
-          >
-            View details
-          </Link>
+        >
+          {formatInr(amount)}
+        </p>
+
+        <div className="pointer-events-auto justify-self-end">
+          {action ? (
+            <Button
+              type="button"
+              size="md"
+              variant="primary"
+              disabled={action.pending}
+              onClick={action.onClick}
+            >
+              {action.pending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              {action.label}
+            </Button>
+          ) : (
+            <span className="text-meta text-mk-muted" aria-hidden>
+              View
+            </span>
+          )}
         </div>
       </div>
     </li>
   );
 }
 
-function DeclineCounterDialog({
-  booking,
-  open,
-  onOpenChange,
-  onConfirm,
-  isPending,
-  error,
+function Section({
+  title,
+  emptyMessage,
+  rows,
+  collapsible = false,
+  defaultOpen = true,
 }: {
-  booking: Booking | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
-  isPending: boolean;
-  error: string | null;
+  title: string;
+  emptyMessage: string;
+  rows: React.ReactNode[];
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
-  if (!booking) return null;
+  const [open, setOpen] = useState(defaultOpen);
+  const isOpen = collapsible ? open : true;
+  const count = rows.length;
+
+  const heading = (
+    <h2 className="text-heading text-mk-ink">
+      {title}
+      {count > 0 ? (
+        <span className="ml-2 text-body font-normal text-mk-muted">
+          ({count})
+        </span>
+      ) : null}
+    </h2>
+  );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-mk-border bg-white sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-sans text-base text-mk-ink">
-            Decline counter-offer?
-          </DialogTitle>
-          <DialogDescription className="font-sans text-sm text-mk-muted">
-            This will cancel your inquiry for{" "}
-            {formatEventType(booking.event_type)} on{" "}
-            {formatEventDate(booking.event_date)}. The vendor will be notified
-            and this booking cannot be reopened.
-          </DialogDescription>
-        </DialogHeader>
-        {error && (
-          <p className="font-sans text-xs text-red-600">{error}</p>
-        )}
-        <DialogFooter className="border-mk-border bg-[#FAF7F0]">
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="inline-flex h-9 items-center rounded-md border border-mk-border bg-white px-3 font-sans text-sm font-medium text-mk-ink hover:bg-white/80"
-          >
-            Keep reviewing
-          </button>
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={onConfirm}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-red-200 bg-red-600 px-3 font-sans text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Decline offer
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <section className="mb-8">
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mb-3 flex w-full items-baseline justify-between gap-2 text-left"
+        >
+          {heading}
+          <span className="text-meta text-mk-muted">
+            {isOpen ? "Hide" : "Show"}
+          </span>
+        </button>
+      ) : (
+        <div className="mb-3">{heading}</div>
+      )}
+      {isOpen ? (
+        count === 0 ? (
+          <p className="text-body text-mk-muted">{emptyMessage}</p>
+        ) : (
+          <Card className="overflow-hidden">
+            <ul>{rows}</ul>
+          </Card>
+        )
+      ) : null}
+    </section>
   );
 }
 
 export default function CustomerDashboardPage() {
   const { user, loading } = useRequireAuth("customer");
   const queryClient = useQueryClient();
-  const [declineTarget, setDeclineTarget] = useState<Booking | null>(null);
-  const [actionErrorId, setActionErrorId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [declineTarget, setDeclineTarget] = useState<BookingListItem | null>(
+    null,
+  );
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [releasingId, setReleasingId] = useState<string | null>(null);
 
   const {
     data: bookings,
@@ -290,26 +227,31 @@ export default function CustomerDashboardPage() {
     isError,
     error,
   } = useQuery({
-    queryKey: ["bookings"],
+    queryKey: ["bookings", "customer"],
     queryFn: fetchBookings,
     enabled: !loading && !!user,
   });
 
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["bookings", "customer"] });
+
   const acceptCounterMutation = useMutation({
     mutationFn: acceptCounter,
-    onMutate: (bookingId) => {
-      setActionErrorId(bookingId);
-      setActionError(null);
-    },
     onSuccess: () => {
-      setActionErrorId(null);
-      setActionError(null);
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast.add({
+        title: "Price accepted",
+        description: "Pay to confirm the booking.",
+        type: "success",
+      });
+      invalidate();
     },
     onError: (err) => {
-      setActionError(
-        err instanceof Error ? err.message : "Failed to accept counter-offer",
-      );
+      toast.add({
+        title: "Couldn't accept",
+        description:
+          err instanceof Error ? err.message : "Failed to accept counter",
+        type: "error",
+      });
     },
   });
 
@@ -317,290 +259,227 @@ export default function CustomerDashboardPage() {
     mutationFn: declineCounter,
     onSuccess: () => {
       setDeclineTarget(null);
-      setActionErrorId(null);
-      setActionError(null);
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast.add({
+        title: "Counter declined",
+        description: "This booking was cancelled.",
+        type: "info",
+      });
+      invalidate();
     },
     onError: (err) => {
-      setActionError(
-        err instanceof Error ? err.message : "Failed to decline counter-offer",
-      );
+      toast.add({
+        title: "Couldn't decline",
+        description:
+          err instanceof Error ? err.message : "Failed to decline counter",
+        type: "error",
+      });
     },
   });
 
   const payMutation = useMutation({
     mutationFn: checkout,
+    onMutate: (id) => setPayingId(id),
+    onSettled: () => setPayingId(null),
     onSuccess: () => {
-      alert("Payment successful! Funds held in escrow.");
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast.add({
+        title: "Payment successful",
+        description: "Funds are held safely until the job is done.",
+        type: "success",
+      });
+      invalidate();
     },
     onError: (err) => {
-      if (err instanceof PaymentCancelledError) return;
+      if (
+        err instanceof PaymentCancelledError ||
+        err instanceof SimulatedCheckoutRedirectError
+      ) {
+        return;
+      }
+      toast.add({
+        title: "Payment failed",
+        description:
+          err instanceof Error ? err.message : "Could not complete payment",
+        type: "error",
+      });
     },
   });
 
   const releaseMutation = useMutation({
     mutationFn: releaseFunds,
+    onMutate: (id) => setReleasingId(id),
+    onSettled: () => setReleasingId(null),
     onSuccess: () => {
-      alert("Funds released to vendor!");
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast.add({
+        title: "Payment released",
+        description: "Funds have been released to the photographer.",
+        type: "success",
+      });
+      invalidate();
+    },
+    onError: (err) => {
+      toast.add({
+        title: "Couldn't release",
+        description: err instanceof Error ? err.message : "Release failed",
+        type: "error",
+      });
     },
   });
 
   if (loading || !user) return null;
 
-  const pendingVendorResponse =
-    bookings?.filter((b) => b.status === "inquiry") ?? [];
+  const list = bookings ?? [];
+  const attention = list.filter((b) =>
+    (CUSTOMER_ATTENTION_STATUSES as readonly string[]).includes(b.status),
+  );
+  const active = list.filter(
+    (b) =>
+      (CUSTOMER_WAITING_STATUSES as readonly string[]).includes(b.status) ||
+      (CUSTOMER_CONFIRMED_STATUSES as readonly string[]).includes(b.status),
+  );
+  const past = list.filter((b) =>
+    (CUSTOMER_DONE_STATUSES as readonly string[]).includes(b.status),
+  );
 
-  const counterOffers =
-    bookings?.filter((b) => b.status === "vendor_countered") ?? [];
+  const attentionRows = attention.map((booking) => {
+    const spec = getBookingStatusAction(booking.status, "customer");
+    let action: RowAction | undefined;
 
-  const awaitingPayment =
-    bookings?.filter((b) => b.status === "vendor_accepted") ?? [];
+    if (spec?.kind === "pay" || spec?.kind === "resume-pay") {
+      action = {
+        label: spec.kind === "resume-pay" ? "Resume" : "Pay",
+        onClick: () => payMutation.mutate(booking.id),
+        pending: payingId === booking.id && payMutation.isPending,
+      };
+    } else if (spec?.kind === "release") {
+      action = {
+        label: "Release",
+        onClick: () => releaseMutation.mutate(booking.id),
+        pending: releasingId === booking.id && releaseMutation.isPending,
+      };
+    } else if (spec?.kind === "accept-counter") {
+      action = {
+        label: "Accept",
+        onClick: () => acceptCounterMutation.mutate(booking.id),
+        pending:
+          acceptCounterMutation.isPending &&
+          acceptCounterMutation.variables === booking.id,
+      };
+    }
 
-  const readyToRelease =
-    bookings?.filter((b) => b.status === "payment_held") ?? [];
+    const meta =
+      booking.status === "vendor_countered"
+        ? "New price suggested"
+        : getBookingStatusLabel(booking.status, "customer");
 
-  const settledBookings =
-    bookings?.filter((b) => b.status === "payment_released") ?? [];
+    return (
+      <BookingRow
+        key={booking.id}
+        booking={booking}
+        action={action}
+        meta={meta}
+      />
+    );
+  });
+
+  const activeRows = active.map((booking) => (
+    <BookingRow
+      key={booking.id}
+      booking={booking}
+      meta={getBookingStatusLabel(booking.status, "customer")}
+    />
+  ));
+
+  const pastRows = past.map((booking) => (
+    <BookingRow
+      key={booking.id}
+      booking={booking}
+      meta={getBookingStatusLabel(booking.status, "customer")}
+    />
+  ));
 
   return (
-    <div className="min-h-screen bg-mk-bg">
-      <AppNav />
+    <Page width="wide">
+      <PageHeader title="Your bookings" />
 
-      <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="font-sans text-xl font-semibold text-mk-ink">
-            Your Event Bookings
-          </h1>
-          <p className="mt-1 font-sans text-sm text-mk-muted">
-            Track inquiries, respond to counter-offers, and manage payments.
-          </p>
+      {isLoading ? (
+        <div className="space-y-3" aria-busy="true">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-28 w-full rounded-lg" />
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-20 w-full rounded-lg" />
         </div>
+      ) : isError ? (
+        <p className="text-body text-mk-ink">
+          Couldn&apos;t load bookings
+          {error instanceof Error ? `: ${error.message}` : "."}
+        </p>
+      ) : (
+        <>
+          <Section
+            title="Needs your attention"
+            emptyMessage="Nothing needs you right now."
+            rows={attentionRows}
+          />
+          <Section
+            title="Active"
+            emptyMessage="No active bookings."
+            rows={activeRows}
+          />
+          <Section
+            title="Past"
+            emptyMessage="No finished bookings yet."
+            rows={pastRows}
+            collapsible
+            defaultOpen={false}
+          />
+        </>
+      )}
 
-        {isLoading ? (
-          <p className="font-sans text-sm text-mk-muted">Loading bookings…</p>
-        ) : isError ? (
-          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 font-sans text-sm text-red-700">
-            Error loading bookings:{" "}
-            {error instanceof Error ? error.message : "Unknown error"}
-          </p>
-        ) : (
-          <div className="space-y-6">
-            <SectionCard
-              title="Pending vendor response"
-              emptyMessage="No inquiries awaiting a vendor response."
-            >
-              {pendingVendorResponse.map((booking) => (
-                <li
-                  key={booking.id}
-                  className="flex flex-wrap items-start justify-between gap-3 border-b border-mk-border px-4 py-3 last:border-b-0"
-                >
-                  <div className="min-w-0 space-y-1">
-                    <p className="font-sans text-sm font-semibold text-mk-ink">
-                      {formatEventType(booking.event_type)} ·{" "}
-                      {formatEventDate(booking.event_date)}
-                    </p>
-                    <p className="font-sans text-xs text-mk-muted">
-                      {formatPackageSummary(booking.package_details)}
-                    </p>
-                    <p className="font-sans text-xs text-mk-muted">
-                      Budget:{" "}
-                      <span className="font-medium tabular-nums text-mk-ink">
-                        {formatInr(booking.total_amount)}
-                      </span>
-                    </p>
-                  </div>
-                  <span className="inline-flex shrink-0 rounded-full bg-[#FAF7F0] px-2.5 py-1 font-sans text-xs font-medium text-mk-ink">
-                    Awaiting vendor response
-                  </span>
-                  <Link
-                    href={`/bookings/${booking.id}`}
-                    className="w-full font-sans text-xs text-mk-navy hover:underline sm:w-auto"
-                  >
-                    View details
-                  </Link>
-                </li>
-              ))}
-            </SectionCard>
-
-            <SectionCard
-              title="Vendor counter-offers"
-              emptyMessage="No counter-offers to review."
-            >
-              {counterOffers.map((booking) => (
-                <CounterOfferRow
-                  key={booking.id}
-                  booking={booking}
-                  onAccept={() => acceptCounterMutation.mutate(booking.id)}
-                  onDecline={() => setDeclineTarget(booking)}
-                  isAccepting={
-                    acceptCounterMutation.isPending &&
-                    acceptCounterMutation.variables === booking.id
-                  }
-                  isDeclining={
-                    declineCounterMutation.isPending &&
-                    declineTarget?.id === booking.id
-                  }
-                  actionError={
-                    actionErrorId === booking.id ? actionError : null
-                  }
-                />
-              ))}
-            </SectionCard>
-
-            <SectionCard
-              title="Awaiting payment"
-              emptyMessage="No bookings awaiting payment."
-            >
-              {awaitingPayment.map((booking) => (
-                <li
-                  key={booking.id}
-                  className="flex flex-wrap items-center justify-between gap-2 border-b border-mk-border px-4 py-3 last:border-b-0"
-                >
-                  <div className="space-y-1">
-                    <p className="font-sans text-sm font-semibold text-mk-ink">
-                      {formatEventType(booking.event_type)} ·{" "}
-                      {formatEventDate(booking.event_date)}
-                    </p>
-                    <p className="font-sans text-xs text-mk-muted">
-                      {formatPackageSummary(booking.package_details)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-sans text-sm font-medium tabular-nums text-mk-ink">
-                      {formatInr(booking.total_amount)}
-                    </span>
-                    <button
-                      type="button"
-                      className="inline-flex h-8 items-center rounded-md bg-mk-navy px-3 font-sans text-xs font-medium text-white transition-colors hover:bg-[#162C47] disabled:opacity-50"
-                      onClick={() => payMutation.mutate(booking.id)}
-                      disabled={payMutation.isPending}
-                    >
-                      {payMutation.isPending ? "Processing…" : "Pay to Escrow"}
-                    </button>
-                    <Link
-                      href={`/bookings/${booking.id}`}
-                      className="font-sans text-xs text-mk-navy hover:underline"
-                    >
-                      Details
-                    </Link>
-                  </div>
-                  {payMutation.isError &&
-                    !(payMutation.error instanceof PaymentCancelledError) && (
-                    <p className="w-full font-sans text-xs text-red-600">
-                      Error:{" "}
-                      {payMutation.error instanceof Error
-                        ? payMutation.error.message
-                        : "Payment failed"}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </SectionCard>
-
-            <SectionCard
-              title="Ready to release"
-              emptyMessage="No bookings awaiting fund release."
-            >
-              {readyToRelease.map((booking) => (
-                <li
-                  key={booking.id}
-                  className="flex flex-wrap items-center justify-between gap-2 border-b border-mk-border px-4 py-3 last:border-b-0"
-                >
-                  <div className="space-y-1">
-                    <p className="font-sans text-sm font-semibold text-mk-ink">
-                      {formatEventType(booking.event_type)} ·{" "}
-                      {formatEventDate(booking.event_date)}
-                    </p>
-                    <p className="font-sans text-xs text-mk-muted">
-                      {formatPackageSummary(booking.package_details)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-sans text-sm font-medium tabular-nums text-mk-ink">
-                      {formatInr(booking.total_amount)}
-                    </span>
-                    <button
-                      type="button"
-                      className="inline-flex h-8 items-center rounded-md bg-mk-navy px-3 font-sans text-xs font-medium text-white transition-colors hover:bg-[#162C47] disabled:opacity-50"
-                      onClick={() => releaseMutation.mutate(booking.id)}
-                      disabled={releaseMutation.isPending}
-                    >
-                      {releaseMutation.isPending
-                        ? "Releasing…"
-                        : "Event complete — release funds"}
-                    </button>
-                    <Link
-                      href={`/bookings/${booking.id}`}
-                      className="font-sans text-xs text-mk-navy hover:underline"
-                    >
-                      Details
-                    </Link>
-                  </div>
-                  {releaseMutation.isError && (
-                    <p className="w-full font-sans text-xs text-red-600">
-                      Error:{" "}
-                      {releaseMutation.error instanceof Error
-                        ? releaseMutation.error.message
-                        : "Release failed"}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </SectionCard>
-
-            <SectionCard
-              title="Settled"
-              emptyMessage="No settled bookings yet."
-            >
-              {settledBookings.map((booking) => (
-                <li
-                  key={booking.id}
-                  className="flex items-center justify-between border-b border-mk-border px-4 py-3 last:border-b-0"
-                >
-                  <div className="space-y-1">
-                    <p className="font-sans text-sm font-semibold text-mk-ink">
-                      {formatEventType(booking.event_type)} ·{" "}
-                      {formatEventDate(booking.event_date)}
-                    </p>
-                    <p className="font-sans text-xs text-mk-muted">
-                      {formatPackageSummary(booking.package_details)}
-                    </p>
-                  </div>
-                  <span className="font-sans text-sm font-medium tabular-nums text-mk-ink">
-                    {formatInr(booking.total_amount)}
-                  </span>
-                </li>
-              ))}
-            </SectionCard>
-          </div>
-        )}
-      </main>
-
-      <DeclineCounterDialog
-        booking={declineTarget}
+      <Dialog
         open={declineTarget != null}
         onOpenChange={(open) => {
-          if (!open) {
-            setDeclineTarget(null);
-            setActionError(null);
-          }
+          if (!open) setDeclineTarget(null);
         }}
-        onConfirm={() => {
-          if (declineTarget) {
-            declineCounterMutation.mutate(declineTarget.id);
-          }
-        }}
-        isPending={declineCounterMutation.isPending}
-        error={
-          declineTarget && declineCounterMutation.isError
-            ? declineCounterMutation.error instanceof Error
-              ? declineCounterMutation.error.message
-              : "Failed to decline"
-            : null
-        }
-      />
-    </div>
+      >
+        <DialogContent className="border-mk-border bg-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-mk-ink">
+              Decline suggested price?
+            </DialogTitle>
+            <DialogDescription className="text-mk-muted">
+              This will cancel your enquiry
+              {declineTarget
+                ? ` for ${formatEventTypeLabel(declineTarget.event_type)} on ${formatEventDate(declineTarget.event_date)}`
+                : ""}
+              . This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="border-mk-border bg-mk-app">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeclineTarget(null)}
+            >
+              Keep reviewing
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={declineCounterMutation.isPending}
+              onClick={() => {
+                if (declineTarget) {
+                  declineCounterMutation.mutate(declineTarget.id);
+                }
+              }}
+            >
+              {declineCounterMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              Decline offer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Page>
   );
 }

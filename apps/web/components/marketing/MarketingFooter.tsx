@@ -2,27 +2,22 @@
 "use client";
 
 /**
- * MarketingFooter
- *
- * Cream-background footer matching the reference screenshot.
- * Left: wordmark + tagline. Centre/right: Platform + Company columns.
- * Bottom row: Legal links + copyright + city markers.
+ * MarketingFooter — honest links and copy for the photography MVP.
  */
 
 import Link from "next/link";
 
 const PLATFORM_LINKS = [
-  { label: "Vendors", href: "/vendors" },
-  { label: "Escrow", href: "#escrow" },
-  { label: "Compliance", href: "#compliance" },
-  { label: "For business", href: "#business" },
+  { label: "Photographers", href: "/vendors" },
+  { label: "How money works", href: "/#escrow" },
+  { label: "List your business", href: "/login" },
 ];
 
 const COMPANY_LINKS = [
   { label: "About", href: "/about" },
   { label: "Vendor standards", href: "/vendor-standards" },
-  { label: "Careers", href: "/careers" },
-  { label: "Press", href: "/press" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Contact", href: "/contact" },
 ];
 
 const LEGAL_LINKS = [
@@ -34,26 +29,22 @@ const LEGAL_LINKS = [
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-[#DDD5C4] bg-[#F5EFE2] py-16">
-      <div className="mx-auto max-w-6xl px-6">
-        {/* Top grid: brand + link columns */}
+    <footer className="border-t border-mk-border bg-mk-bg py-12">
+      <div className="mx-auto max-w-[1200px] px-6">
         <div className="grid grid-cols-1 gap-12 sm:grid-cols-3 md:grid-cols-4">
-          {/* Brand */}
           <div className="flex flex-col gap-3 md:col-span-2">
-            <span className="font-sans text-lg font-semibold text-[#1C1A16]">
+            <span className="font-sans text-heading font-semibold text-mk-ink">
               Kritva.
             </span>
-            <p className="max-w-[220px] font-sans text-sm leading-relaxed text-[#7A7060]">
-              The operating system for{" "}
-              <span className="text-[#B87333]">India's</span> premium events.
-              Verified, escrowed,{" "}
-              <span className="text-[#1D3557]">compliant</span>.
+            <p className="max-w-[280px] font-sans text-meta leading-relaxed text-mk-muted">
+              Book event vendors with money held until the work is done.
+              Starting with photography in{" "}
+              <span className="text-mk-navy">Delhi NCR</span>.
             </p>
           </div>
 
-          {/* Platform */}
           <div className="flex flex-col gap-4">
-            <p className="font-sans text-[10px] font-semibold uppercase tracking-widest text-[#7A7060]">
+            <p className="font-sans text-label font-semibold uppercase tracking-widest text-mk-muted">
               Platform
             </p>
             <ul className="flex flex-col gap-2.5">
@@ -61,7 +52,7 @@ export function MarketingFooter() {
                 <li key={l.label}>
                   <Link
                     href={l.href}
-                    className="font-sans text-sm text-[#1C1A16] transition-colors hover:text-[#1D3557]"
+                    className="font-sans text-meta text-mk-ink transition-colors hover:text-mk-navy"
                   >
                     {l.label}
                   </Link>
@@ -70,9 +61,8 @@ export function MarketingFooter() {
             </ul>
           </div>
 
-          {/* Company */}
           <div className="flex flex-col gap-4">
-            <p className="font-sans text-[10px] font-semibold uppercase tracking-widest text-[#7A7060]">
+            <p className="font-sans text-label font-semibold uppercase tracking-widest text-mk-muted">
               Company
             </p>
             <ul className="flex flex-col gap-2.5">
@@ -80,7 +70,7 @@ export function MarketingFooter() {
                 <li key={l.label}>
                   <Link
                     href={l.href}
-                    className="font-sans text-sm text-[#1C1A16] transition-colors hover:text-[#1D3557]"
+                    className="font-sans text-meta text-mk-ink transition-colors hover:text-mk-navy"
                   >
                     {l.label}
                   </Link>
@@ -90,37 +80,26 @@ export function MarketingFooter() {
           </div>
         </div>
 
-        {/* Legal row */}
-        <div className="mt-12 border-t border-[#DDD5C4] pt-8">
-          <div className="mb-3">
-            <p className="font-sans text-[10px] font-semibold uppercase tracking-widest text-[#7A7060]">
-              Legal
-            </p>
-          </div>
+        <div className="mt-10 border-t border-mk-border pt-8">
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             {LEGAL_LINKS.map((l) => (
               <Link
                 key={l.label}
                 href={l.href}
-                className="font-sans text-sm text-[#1D3557] transition-colors hover:text-[#1C1A16]"
+                className="font-sans text-meta text-mk-navy transition-colors hover:text-mk-ink"
               >
                 {l.label}
               </Link>
             ))}
           </div>
-        </div>
-
-        {/* Bottom bar */}
-        <div className="mt-12 flex flex-col gap-2 border-t border-[#DDD5C4] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-sans text-[11px] uppercase tracking-wider text-[#7A7060]">
-            © 2026 Kritva Technologies Pvt. Ltd.
-          </p>
-          <p className="font-sans text-[11px] uppercase tracking-wider text-[#7A7060]">
-            Escrow Regulated ·{" "}
-            <span className="text-[#1D3557]">Bengaluru</span> ·{" "}
-            <span className="text-[#1D3557]">Mumbai</span> ·{" "}
-            <span className="text-[#1D3557]">Delhi</span>
-          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-sans text-label uppercase tracking-wider text-mk-muted">
+              © 2026 Kritva Technologies Pvt. Ltd.
+            </p>
+            <p className="font-sans text-label uppercase tracking-wider text-mk-muted">
+              Delhi NCR · Photography first
+            </p>
+          </div>
         </div>
       </div>
     </footer>

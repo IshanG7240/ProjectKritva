@@ -26,12 +26,14 @@ const dmSerif = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Kritva — Plan the event. We'll hold the rest.",
-  description: "Kritva is the operating system for India's premium events. Verified vendors, escrowed payments, and built-in compliance.",
+  title: "Kritva — Money held until the job is done",
+  description:
+    "Find photographers in Delhi NCR, agree a price, pay into hold, and release when the work is done. Starting with photography.",
 };
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Providers } from "@/app/providers";
 
@@ -47,12 +49,14 @@ export default function RootLayout({
           <ThemeProvider
             attribute="class"
             defaultTheme="light"
-            enableSystem
+            enableSystem={false}
             disableTransitionOnChange
           >
-            <TooltipProvider>
-              {children}
-            </TooltipProvider>
+            <Toaster>
+              <TooltipProvider>
+                {children}
+              </TooltipProvider>
+            </Toaster>
           </ThemeProvider>
         </Providers>
       </body>

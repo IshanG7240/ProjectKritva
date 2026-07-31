@@ -40,6 +40,7 @@ const MOCK_VENDOR_SLUGS = new Set([
   "spice-route-caterers",
   "aperture-stories",
   "the-orchid-estate",
+  "iit-photography-wale-vbhr",
 ]);
 
 export function isMockVendor(slug: string): boolean {

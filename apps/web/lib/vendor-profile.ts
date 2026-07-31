@@ -62,7 +62,20 @@ export function formatUnit(unit: string): string {
   return unit.replace(/_/g, " ");
 }
 
-/** Directory / card price label from aggregated package fields. */
+/** Directory card: always "From ₹X per day" (or per unit) — never a range. */
+export function formatDirectoryFromPrice(opts: {
+  price_min: number | null;
+  unit: string | null;
+}): string | null {
+  if (opts.price_min == null) return null;
+  const rupees = Math.round(opts.price_min / 100).toLocaleString("en-IN");
+  const unit = opts.unit?.replace(/_/g, " ") || "day";
+  const per =
+    unit === "flat" ? "" : unit.startsWith("per ") ? ` ${unit}` : ` per ${unit}`;
+  return `From ₹${rupees}${per}`;
+}
+
+/** Package detail labels — may show a single price or range. */
 export function formatPackagePriceLabel(opts: {
   price_min: number | null;
   price_max: number | null;
@@ -77,7 +90,7 @@ export function formatPackagePriceLabel(opts: {
     Math.round(paisa / 100).toLocaleString("en-IN");
 
   if (units_mixed) {
-    return `Starting at ₹${formatPaisa(price_min)}${unitSuffix}`;
+    return `From ₹${formatPaisa(price_min)}${unitSuffix}`;
   }
 
   if (price_max != null && price_max !== price_min) {

@@ -1,7 +1,6 @@
 // Re-exports for all Drizzle table definitions.
 //
 // Per-domain modules mirror the SQL migrations under `../../migrations/`.
-// T-006: all 25 tables across 7 domain files.
 
 export * from "./admin.js";
 export * from "./bookings.js";

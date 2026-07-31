@@ -1,6 +1,6 @@
 // Payment domain: payments, payment_payouts, vendor_bank_accounts,
 // webhook_events, invoices
-// Mirrors migrations/004_payment_domain.sql exactly.
+// Mirrors migrations/004_payment_domain.sql + 020_mvp_columns.sql + 021.
 
 import { sql } from "drizzle-orm";
 import {
@@ -60,6 +60,7 @@ export const payments = pgTable(
       .default("none")
       .$type<(typeof ESCROW_STATUSES)[number]>(),
     failureReason: text("failure_reason"),
+    mode: text("mode").notNull().default("simulated"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
@@ -74,7 +75,12 @@ export const payments = pgTable(
     index("idx_pay_milestone").on(t.milestoneId),
     index("idx_pay_customer").on(t.customerId),
     index("idx_pay_vendor").on(t.vendorId),
-    index("idx_pay_gateway_order").on(t.gatewayOrderId),
+    uniqueIndex("uq_pay_gateway_order_id")
+      .on(t.gatewayOrderId)
+      .where(sql`${t.gatewayOrderId} IS NOT NULL`),
+    uniqueIndex("uq_pay_gateway_payment_id")
+      .on(t.gatewayPaymentId)
+      .where(sql`${t.gatewayPaymentId} IS NOT NULL`),
     index("idx_pay_status").on(t.status),
     index("idx_pay_escrow").on(t.escrowStatus),
     index("idx_pay_created").on(t.createdAt),

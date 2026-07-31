@@ -15,11 +15,15 @@ export const ROLE_NAV_LINKS: Record<NavRole, NavLink[]> = {
   ],
   vendor: [
     { label: "Inquiries", href: "/vendor" },
+    { label: "Calendar", href: "/vendor/calendar" },
+    { label: "Payouts", href: "/vendor/payouts" },
     { label: "Profile", href: "/vendor/profile" },
   ],
   admin: [
     { label: "Verification", href: "/admin" },
+    { label: "Bookings", href: "/admin/bookings" },
     { label: "Users", href: "/admin/users" },
+    { label: "Settings", href: "/admin/settings" },
   ],
 };
 

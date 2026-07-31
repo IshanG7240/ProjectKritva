@@ -55,23 +55,23 @@ export function PortfolioShowcase({
     }
   }
 
+  if (!editable && items.length === 0) return null;
+
   return (
-    <section>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <h2 className="font-sans text-lg font-semibold text-mk-ink">
-          Portfolio Showcase
-        </h2>
-        <div className="flex flex-wrap items-center gap-3">
-          {showViewAll && (
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-heading text-mk-ink">Work</h2>
+        <div className="flex items-center gap-3">
+          {showViewAll ? (
             <Link
               href={`/vendors/${vendorSlug}/photos`}
-              className="font-sans text-sm font-medium text-mk-navy transition-colors hover:text-mk-ink"
+              className="text-body font-medium text-mk-navy hover:underline"
             >
-              View all{hasMore ? ` (${allItems.length})` : ""}
+              All{hasMore ? ` ${allItems.length}` : ""}
             </Link>
-          )}
-          {editable && (
-            <div className="flex flex-wrap items-center gap-2">
+          ) : null}
+          {editable ? (
+            <>
               <input
                 ref={inputRef}
                 type="file"
@@ -84,7 +84,7 @@ export function PortfolioShowcase({
                 type="button"
                 disabled={uploading}
                 onClick={() => inputRef.current?.click()}
-                className="inline-flex items-center gap-2 rounded-lg border border-mk-border bg-white px-3 py-2 font-sans text-sm font-medium text-mk-ink hover:bg-[#FAF7F0] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 font-sans text-meta font-medium text-mk-navy hover:underline disabled:opacity-50"
               >
                 {uploading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -93,29 +93,25 @@ export function PortfolioShowcase({
                 )}
                 Upload
               </button>
-            </div>
-          )}
+            </>
+          ) : null}
         </div>
       </div>
 
-      {uploadError && (
-        <p className="mb-3 text-sm text-red-600">{uploadError}</p>
-      )}
+      {uploadError ? (
+        <p className="font-sans text-meta text-red-600">{uploadError}</p>
+      ) : null}
 
       {items.length === 0 ? (
-        <div className="flex min-h-[180px] items-center justify-center rounded-xl border border-dashed border-mk-border bg-[#FAF7F0]">
-          <p className="px-4 text-center font-sans text-sm text-mk-muted">
-            {editable
-              ? "Upload portfolio photos or videos."
-              : "No portfolio items yet."}
-          </p>
-        </div>
+        <p className="font-sans text-meta text-mk-muted">
+          Upload portfolio photos or videos.
+        </p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {items.map((item) => (
             <div
               key={item.id}
-              className="group relative aspect-[4/3] overflow-hidden rounded-xl"
+              className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-mk-line"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -124,15 +120,15 @@ export function PortfolioShowcase({
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
               />
 
-              {item.isVideo && (
+              {item.isVideo ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-md backdrop-blur-sm transition-transform group-hover:scale-105">
-                    <Play className="ml-0.5 h-5 w-5 fill-mk-ink text-mk-ink" />
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90">
+                    <Play className="ml-0.5 h-4 w-4 fill-mk-ink text-mk-ink" />
                   </span>
                 </div>
-              )}
+              ) : null}
 
-              {editable && onRemove && (
+              {editable && onRemove ? (
                 <button
                   type="button"
                   onClick={() => onRemove(item.id)}
@@ -141,7 +137,7 @@ export function PortfolioShowcase({
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
-              )}
+              ) : null}
             </div>
           ))}
         </div>

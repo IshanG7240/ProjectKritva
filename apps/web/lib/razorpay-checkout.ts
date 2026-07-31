@@ -1,4 +1,8 @@
 import { apiClient } from "@/lib/api-client";
+import {
+  buildSimulatedCheckoutPath,
+  isSimulatedOrderId,
+} from "@/lib/simulated-checkout";
 
 const CHECKOUT_SCRIPT_URL = "https://checkout.razorpay.com/v1/checkout.js";
 
@@ -50,7 +54,7 @@ interface CreateOrderResponse {
   order_id: string;
   amount: number;
   currency: string;
-  razorpay_key_id: string;
+  razorpay_key_id?: string;
 }
 
 let scriptLoadPromise: Promise<void> | null = null;
@@ -108,21 +112,22 @@ export class PaymentFailedError extends Error {
   }
 }
 
-export async function checkoutBookingPayment(bookingId: string): Promise<void> {
-  const orderRes = await apiClient.post<CreateOrderResponse>(
-    "/v1/payments/create-order",
-    { booking_id: bookingId },
-  );
-
-  if (orderRes.error) {
-    throw new Error(orderRes.error.message);
+/** Thrown after navigating to Kritva's simulated checkout — not a user-facing failure. */
+export class SimulatedCheckoutRedirectError extends Error {
+  constructor() {
+    super("Redirecting to simulated checkout");
+    this.name = "SimulatedCheckoutRedirectError";
   }
+}
 
-  const order = orderRes.data;
-  if (!order) {
-    throw new Error("Failed to create payment order");
-  }
+function shouldUseSimulatedCheckout(order: CreateOrderResponse): boolean {
+  return isSimulatedOrderId(order.order_id) || !order.razorpay_key_id;
+}
 
+async function openRazorpayCheckout(
+  bookingId: string,
+  order: CreateOrderResponse,
+): Promise<void> {
   const keyId =
     process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? order.razorpay_key_id;
 
@@ -183,4 +188,30 @@ export async function checkoutBookingPayment(bookingId: string): Promise<void> {
 
     razorpay.open();
   });
+}
+
+export async function checkoutBookingPayment(bookingId: string): Promise<void> {
+  const orderRes = await apiClient.post<CreateOrderResponse>(
+    "/v1/payments/create-order",
+    { booking_id: bookingId },
+  );
+
+  if (orderRes.error) {
+    throw new Error(orderRes.error.message);
+  }
+
+  const order = orderRes.data;
+  if (!order) {
+    throw new Error("Failed to create payment order");
+  }
+
+  if (shouldUseSimulatedCheckout(order)) {
+    if (typeof window === "undefined") {
+      throw new Error("Simulated checkout is only available in the browser");
+    }
+    window.location.assign(buildSimulatedCheckoutPath(bookingId, order));
+    throw new SimulatedCheckoutRedirectError();
+  }
+
+  await openRazorpayCheckout(bookingId, order);
 }

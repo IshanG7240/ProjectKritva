@@ -4,16 +4,17 @@
  * Binds the Hono app to a TCP port using @hono/node-server.
  * This file is intentionally separate from index.ts so the app
  * can be imported without side effects (e.g. in tests).
+ *
+ * Config is validated at import time (fail-closed on PAYMENT_MODE).
  */
 import { serve } from "@hono/node-server";
+import { config } from "./config.js";
 import { app } from "./index.js";
-
-const port = Number(process.env.PORT ?? 5430);
 
 serve(
   {
     fetch: app.fetch,
-    port,
+    port: config.PORT,
   },
   (info) => {
     console.log(`[@kritva/api] Server listening on http://localhost:${info.port}`);

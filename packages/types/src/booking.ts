@@ -46,7 +46,8 @@ export const createBookingInquirySchema = z.object({
   package_details: z
     .array(bookingPackageSelectionSchema)
     .min(1, "At least one package selection is required"),
-  total_amount: paisaSchema,
+  /** Optional; ignored for storage. Rejected if present and ≠ Σ(price × qty). */
+  total_amount: paisaSchema.optional(),
   event_date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Event date must be in YYYY-MM-DD format"),
@@ -99,6 +100,45 @@ export const cancelBookingSchema = z.object({
     .nullable(),
 });
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
+
+/** Vendor delivery proof — gallery link + optional note. */
+export const deliverBookingSchema = z.object({
+  gallery_url: z.string().url("gallery_url must be a valid URL"),
+  note: z
+    .string()
+    .max(2000, "Note cannot exceed 2000 characters")
+    .optional()
+    .nullable(),
+});
+export type DeliverBookingInput = z.infer<typeof deliverBookingSchema>;
+
+/**
+ * Dispute reasons. Includes `customer_issue` for the current web stub payload;
+ * preferred values match the product copy (not delivered / partial / quality / other).
+ */
+export const DISPUTE_REASONS = [
+  "not_delivered",
+  "partial",
+  "quality",
+  "other",
+  "customer_issue",
+] as const;
+export const disputeReasonSchema = z.enum(DISPUTE_REASONS);
+export type DisputeReason = z.infer<typeof disputeReasonSchema>;
+
+export const disputeBookingSchema = z.object({
+  reason: disputeReasonSchema,
+  description: z
+    .string()
+    .min(10, "Description must be at least 10 characters")
+    .max(2000, "Description cannot exceed 2000 characters"),
+  evidence_urls: z
+    .array(z.string().url("Each evidence_urls entry must be a valid URL"))
+    .max(10, "At most 10 evidence URLs")
+    .optional()
+    .nullable(),
+});
+export type DisputeBookingInput = z.infer<typeof disputeBookingSchema>;
 
 // ==========================================
 // 3. Milestone Validation Schemas

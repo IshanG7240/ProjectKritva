@@ -1,10 +1,11 @@
 // Booking domain: events, checklist_items, bookings,
-// booking_milestones, booking_events
-// Mirrors migrations/003_booking_domain.sql exactly.
+// booking_milestones, booking_events, briefs
+// Mirrors migrations/003_booking_domain.sql + 016 + 019–020 + 022.
 
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   inet,
   integer,
@@ -13,11 +14,13 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
 import {
   BOOKING_STATUSES,
+  ESCROW_OUTCOMES,
   EVENT_STATUSES,
   EVENT_TYPES,
   MILESTONE_NAMES,
@@ -38,7 +41,7 @@ export const events = pgTable(
     type: text("type")
       .notNull()
       .$type<(typeof EVENT_TYPES)[number]>(),
-    date: text("date"), // stored as `date` in PG; nullable
+    date: date("date", { mode: "string" }),
     cityId: varchar("city_id", { length: 50 }).notNull().default("delhi-ncr"),
     venue: text("venue"),
     guestCount: integer("guest_count"),
@@ -115,11 +118,16 @@ export const bookings = pgTable(
     declineReason: text("decline_reason"),
     counterAmount: integer("counter_amount"), // paisa; nullable
     counterMessage: text("counter_message"),
-    eventDate: text("event_date").notNull(), // stored as `date` in PG
+    eventDate: date("event_date", { mode: "string" }).notNull(),
     eventType: text("event_type").notNull(),
     guestCount: integer("guest_count"),
     notes: text("notes"),
     cityId: varchar("city_id", { length: 50 }).notNull().default("delhi-ncr"),
+    origin: text("origin").notNull().default("direct"),
+    commissionBps: integer("commission_bps"),
+    escrowOutcome: text("escrow_outcome").$type<
+      (typeof ESCROW_OUTCOMES)[number]
+    >(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
@@ -160,7 +168,7 @@ export const bookingMilestones = pgTable(
     label: varchar("label", { length: 100 }).notNull(),
     amount: integer("amount").notNull(), // paisa
     percentage: numeric("percentage", { precision: 5, scale: 2 }).notNull(),
-    dueDate: text("due_date"), // stored as `date` in PG; nullable
+    dueDate: date("due_date", { mode: "string" }),
     paymentStatus: text("payment_status")
       .notNull()
       .default("pending")
@@ -172,6 +180,7 @@ export const bookingMilestones = pgTable(
       .default(sql`now()`),
   },
   (t) => [
+    uniqueIndex("uq_bm_booking_name").on(t.bookingId, t.name),
     index("idx_bm_booking").on(t.bookingId),
     index("idx_bm_status").on(t.paymentStatus),
   ],
@@ -210,3 +219,36 @@ export const bookingEvents = pgTable(
 
 export type BookingEvent = typeof bookingEvents.$inferSelect;
 export type NewBookingEvent = typeof bookingEvents.$inferInsert;
+
+// ============================================================
+// BRIEFS
+// ============================================================
+export const briefs = pgTable(
+  "briefs",
+  {
+    id: text("id")
+      .primaryKey()
+      .default(sql`generate_ulid()`),
+    bookingId: text("booking_id").notNull(),
+    category: text("category").notNull(),
+    eventType: text("event_type").notNull(),
+    answers: jsonb("answers")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => [
+    uniqueIndex("uq_brief_booking").on(t.bookingId),
+    index("idx_brief_booking").on(t.bookingId),
+  ],
+);
+
+export type Brief = typeof briefs.$inferSelect;
+export type NewBrief = typeof briefs.$inferInsert;

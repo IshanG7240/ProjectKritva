@@ -1,4 +1,3 @@
-import { AvailabilityWidget } from "./AvailabilityWidget";
 import { MenuAndQuoteForm } from "./MenuAndQuoteForm";
 import { SecureBookingInfo } from "./SecureBookingInfo";
 import type { VendorPackage } from "@/lib/vendor-profile";
@@ -8,7 +7,7 @@ interface VendorProfileSidebarProps {
   vendorSlug?: string;
   packages?: Pick<
     VendorPackage,
-    "id" | "name" | "price" | "unit" | "min_quantity"
+    "id" | "name" | "price" | "unit" | "min_quantity" | "inclusions"
   >[];
 }
 
@@ -18,16 +17,15 @@ export function VendorProfileSidebar({
   packages,
 }: VendorProfileSidebarProps = {}) {
   return (
-    <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:self-start">
-      <SecureBookingInfo />
-      <AvailabilityWidget />
-      {vendorId && vendorSlug && packages && (
+    <div className="flex flex-col gap-3">
+      {vendorId && vendorSlug && packages ? (
         <MenuAndQuoteForm
           vendorId={vendorId}
           vendorSlug={vendorSlug}
           packages={packages}
         />
-      )}
+      ) : null}
+      <SecureBookingInfo />
     </div>
   );
 }

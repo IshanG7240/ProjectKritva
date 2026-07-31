@@ -1,11 +1,12 @@
 // Vendor domain: vendors, vendor_packages, vendor_media,
 // vendor_availability, vendor_documents
-// Mirrors migrations/002_vendor_domain.sql + 016_vendor_packages.sql.
+// Mirrors migrations/002 + 013–017 + 019–020.
 
 import { sql } from "drizzle-orm";
 import {
   boolean,
   customType,
+  date,
   index,
   integer,
   jsonb,
@@ -24,6 +25,8 @@ import {
   PACKAGE_UNITS,
   VERIFICATION_STATUSES,
 } from "@kritva/types";
+import { users } from "./users.js";
+
 // tsvector is not a built-in Drizzle pg-core column type; we declare a
 // custom type so Drizzle carries it through without trying to cast it.
 const tsvector = customType<{ data: string }>({
@@ -41,7 +44,7 @@ export const vendors = pgTable(
     id: text("id")
       .primaryKey()
       .default(sql`generate_ulid()`),
-    userId: text("user_id").notNull(),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
     businessName: varchar("business_name", { length: 200 }).notNull(),
     slug: varchar("slug", { length: 200 }).notNull(),
     category: text("category").array().notNull().default(sql`'{}'`),
@@ -71,6 +74,7 @@ export const vendors = pgTable(
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     verifiedBy: text("verified_by"), // soft ref to users.id
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    isDemo: boolean("is_demo").notNull().default(false),
     searchVector: tsvector("search_vector"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -150,7 +154,9 @@ export const vendorMedia = pgTable(
     id: text("id")
       .primaryKey()
       .default(sql`generate_ulid()`),
-    vendorId: text("vendor_id").notNull(),
+    vendorId: text("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
     url: text("url").notNull(),
     thumbnailUrl: text("thumbnail_url"),
     detailUrl: text("detail_url"),
@@ -186,8 +192,10 @@ export const vendorAvailability = pgTable(
     id: text("id")
       .primaryKey()
       .default(sql`generate_ulid()`),
-    vendorId: text("vendor_id").notNull(),
-    date: text("date").notNull(), // stored as `date` in PG; text keeps Drizzle simple
+    vendorId: text("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
     isAvailable: boolean("is_available").notNull().default(true),
     bookingId: text("booking_id"), // soft ref to bookings.id
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -212,7 +220,9 @@ export const vendorDocuments = pgTable(
     id: text("id")
       .primaryKey()
       .default(sql`generate_ulid()`),
-    vendorId: text("vendor_id").notNull(),
+    vendorId: text("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
     type: text("type")
       .notNull()
       .$type<(typeof DOCUMENT_TYPES)[number]>(),

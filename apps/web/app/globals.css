@@ -4,96 +4,67 @@
 
 @layer base {
   :root {
-    /* Base surfaces — pure white + very light grey card */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 10%;
-    --card: 0 0% 98%;
-    --card-foreground: 240 10% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
+    /* ── Brand (source of truth) ─────────────────────────── */
+    --mk-bg:          43 45% 92%;   /* #F5EFE2 marketing canvas */
+    --mk-app:         40 43% 96%;   /* #FAF7F0 product canvas   */
+    --mk-surface:     0 0% 100%;    /* #FFFFFF cards            */
+    --mk-surface-2:   40 33% 98%;   /* #FDFBF7 nested surfaces  */
+    --mk-ink:         40 10% 10%;   /* #1C1A16                  */
+    --mk-muted:       38 13% 33%;   /* #5F5749 — 6.2:1 on cream */
+    --mk-border:      41 33% 82%;   /* #DDD5C4                  */
+    --mk-line:        41 27% 90%;   /* #EDE8DE hairlines        */
+    --mk-navy:        212 49% 23%;  /* #1D3557 action + HELD    */
+    --mk-navy-hover:  212 51% 18%;  /* #162C47                  */
+    --mk-copper:      27 55% 46%;   /* #B87333 accent only      */
 
-    /* Primary — deep charcoal, same as foreground for high contrast */
-    --primary: 240 10% 10%;
+    /* ── Semantic (what components consume) ──────────────── */
+    --background: var(--mk-app);
+    --foreground: var(--mk-ink);
+    --card: var(--mk-surface);
+    --card-foreground: var(--mk-ink);
+    --popover: var(--mk-surface);
+    --popover-foreground: var(--mk-ink);
+    --primary: var(--mk-navy);
     --primary-foreground: 0 0% 100%;
-
-    /* Secondary — light cool grey */
-    --secondary: 210 16% 93%;
-    --secondary-foreground: 240 10% 20%;
-
-    /* Muted text / backgrounds */
-    --muted: 210 16% 96%;
-    --muted-foreground: 240 5% 45%;
-
-    /* Accent — neutral hover state */
-    --accent: 210 16% 93%;
-    --accent-foreground: 240 10% 10%;
-
-    /* Destructive */
-    --destructive: 0 84% 60%;
+    --secondary: var(--mk-line);
+    --secondary-foreground: var(--mk-ink);
+    --muted: var(--mk-surface-2);
+    --muted-foreground: var(--mk-muted);
+    --accent: var(--mk-line);
+    --accent-foreground: var(--mk-ink);
+    --destructive: 0 62% 40%;
     --destructive-foreground: 0 0% 100%;
+    --border: var(--mk-border);
+    --input: var(--mk-border);
+    --ring: var(--mk-navy);
 
-    /* Borders and inputs */
-    --border: 220 13% 88%;
-    --input: 220 13% 88%;
-    --ring: 240 10% 10%;
+    /* ── Status ──────────────────────────────────────────── */
+    --held:    var(--mk-navy);
+    --success: 152 55% 26%;
+    --success-bg: 152 40% 94%;
+    --success-fg: 152 55% 20%;
+    --warning: 32 75% 34%;
+    --warning-bg: 40 80% 94%;
+    --warning-fg: 32 75% 26%;
+    --danger:  0 62% 40%;
+    --danger-bg: 0 70% 96%;
+    --danger-fg: 0 62% 32%;
 
-    /* Sharp 4px radius for clean, professional look */
-    --radius: 4px;
+    /* Legacy status aliases (badge utilities) */
+    --status-pending: var(--warning);
+    --status-pending-bg: var(--warning-bg);
+    --status-pending-fg: var(--warning-fg);
+    --status-confirmed: var(--success);
+    --status-confirmed-bg: var(--success-bg);
+    --status-confirmed-fg: var(--success-fg);
+    --status-released: var(--mk-navy);
+    --status-released-bg: 212 40% 94%;
+    --status-released-fg: var(--mk-navy);
+    --status-cancelled: var(--danger);
+    --status-cancelled-bg: var(--danger-bg);
+    --status-cancelled-fg: var(--danger-fg);
 
-    /* Status colors — amber for payment pending, emerald for confirmed/completed */
-    --status-pending: 38 92% 50%;
-    --status-pending-bg: 48 96% 95%;
-    --status-pending-fg: 32 95% 20%;
-    --status-confirmed: 142 71% 45%;
-    --status-confirmed-bg: 138 76% 95%;
-    --status-confirmed-fg: 142 72% 18%;
-    --status-released: 221 83% 53%;
-    --status-released-bg: 214 100% 95%;
-    --status-released-fg: 224 71% 22%;
-    --status-cancelled: 0 84% 60%;
-    --status-cancelled-bg: 0 100% 96%;
-    --status-cancelled-fg: 0 74% 25%;
-
-    /* Fallback Font Variables for Offline builds */
-    --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-lexend: 'Lexend', system-ui, -apple-system, sans-serif;
-    --font-jetbrains-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  }
-
-  .dark {
-    --background: 220 29% 6%;
-    --foreground: 220 23% 95%;
-    --card: 220 24% 10%;
-    --card-foreground: 220 23% 95%;
-    --popover: 220 23% 12%;
-    --popover-foreground: 220 23% 95%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 220 24% 14%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 24% 14%;
-    --input: 220 23% 12%;
-    --ring: 212.7 26.8% 83.9%;
-
-    /* Status colors dark variants */
-    --status-pending: 38 92% 60%;
-    --status-pending-bg: 32 80% 12%;
-    --status-pending-fg: 48 96% 88%;
-    --status-confirmed: 142 71% 50%;
-    --status-confirmed-bg: 142 50% 10%;
-    --status-confirmed-fg: 138 76% 85%;
-    --status-released: 221 83% 65%;
-    --status-released-bg: 221 60% 12%;
-    --status-released-fg: 214 100% 88%;
-    --status-cancelled: 0 84% 65%;
-    --status-cancelled-bg: 0 60% 12%;
-    --status-cancelled-fg: 0 100% 88%;
+    --radius: 10px;
   }
 }
 
@@ -111,7 +82,6 @@
 }
 
 @layer utilities {
-  /* Semantic status badge utilities for booking/payment states */
   .status-pending {
     background-color: hsl(var(--status-pending-bg));
     color: hsl(var(--status-pending-fg));

@@ -1,11 +1,12 @@
-// Admin domain: platform_config, disputes, audit_logs
-// Mirrors migrations/006_admin_domain.sql exactly.
+// Admin domain: platform_config, category_configs, disputes, audit_logs
+// Mirrors migrations/006_admin_domain.sql + 020_mvp_columns.sql.
 
 import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
   inet,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -37,6 +38,36 @@ export const platformConfig = pgTable(
 
 export type PlatformConfig = typeof platformConfig.$inferSelect;
 export type NewPlatformConfig = typeof platformConfig.$inferInsert;
+
+// ============================================================
+// CATEGORY_CONFIGS
+// ============================================================
+export const categoryConfigs = pgTable("category_configs", {
+  id: text("id").primaryKey(),
+  contractType: text("contract_type").notNull(),
+  pricingUnits: text("pricing_units").array().notNull().default(sql`'{}'`),
+  quantityLabel: text("quantity_label"),
+  briefFields: jsonb("brief_fields")
+    .$type<unknown[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  proofRequired: jsonb("proof_required")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  minLeadTimeDays: integer("min_lead_time_days").notNull().default(0),
+  minPortfolioPhotos: integer("min_portfolio_photos").notNull().default(0),
+  commissionBps: integer("commission_bps").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+});
+
+export type CategoryConfig = typeof categoryConfigs.$inferSelect;
+export type NewCategoryConfig = typeof categoryConfigs.$inferInsert;
 
 // ============================================================
 // DISPUTES

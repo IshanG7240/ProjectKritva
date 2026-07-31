@@ -19,7 +19,10 @@ import { authRouter } from "./routes/auth.js";
 import { vendorsRouter } from "./routes/vendors.js";
 import { bookingsRouter } from "./routes/bookings.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { webhooksRouter } from "./routes/webhooks.js";
 import { adminRouter } from "./routes/admin.js";
+import { internalRouter } from "./routes/internal.js";
+import { leadsRouter } from "./routes/leads.js";
 
 
 /** Shape of every error object that appears inside the error envelope. */
@@ -62,12 +65,17 @@ app.use(
 
 app.get("/health", (c) => c.json({ data: { status: "ok" }, error: null }));
 
-// Mount business-domain routes
+// Mount business-domain routes.
+// Protected routers apply supabaseAuth() + accountStatus() (ban/suspend gate).
+// Webhooks stay outside JWT auth — HMAC over raw body is the authn.
 app.route("/v1/auth", authRouter);
+app.route("/v1/leads", leadsRouter);
 app.route("/v1/vendors", vendorsRouter);
 app.route("/v1/bookings", bookingsRouter);
+app.route("/v1/payments/webhook", webhooksRouter);
 app.route("/v1/payments", paymentsRouter);
 app.route("/v1/admin", adminRouter);
+app.route("/v1/internal", internalRouter);
 
 // ---------------------------------------------------------------------------
 // Global error handler

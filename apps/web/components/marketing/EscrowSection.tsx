@@ -1,112 +1,71 @@
-/* eslint-disable */
 "use client";
 
 /**
- * EscrowSection
- *
- * "ESCROW, IN THREE PARTS" — editorial left/right split layout.
- * Left: headline + supporting text.
- * Right: numbered step list with thin separators.
+ * EscrowSection — bank-locker metaphor in three plain-register steps.
  */
 
 import { motion } from "framer-motion";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { shellWide } from "@/lib/shell";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 const STEPS = [
   {
     num: "01",
-    title: "Funds enter\nescrow",
-    desc: (
-      <>
-        Deposits sit in a regulated account,{" "}
-        <span className="text-[#1D3557]">visible</span> to both parties,{" "}
-        <span className="text-[#1D3557]">untouchable</span> by either.
-      </>
-    ),
+    title: "Money in the locker",
+    body: "You pay the full amount once. It sits with our licensed payment partner — the photographer can see it, but no one can touch it.",
   },
   {
     num: "02",
-    title: "Vendor performs\nthe work",
-    desc: (
-      <>
-        Milestones and{" "}
-        <span className="text-[#1D3557]">deliverables</span> logged in-app.{" "}
-        No chasing, <span className="text-[#B87333]">no ambiguity</span>, no
-        cash on the day.
-      </>
-    ),
+    title: "They do the job",
+    body: "The photographer shoots the event and delivers the photos. Packages spell out hours, shooters, and deliverables up front — no chasing a balance.",
   },
   {
     num: "03",
-    title: "You confirm,\npayment moves",
-    desc: (
-      <>
-        One tap releases funds. Disputes are mediated by{" "}
-        <span className="text-[#1D3557]">Kritva</span>, not by phone calls{" "}
-        <span className="text-[#1D3557]">at midnight</span>.
-      </>
-    ),
+    title: "You turn the key",
+    body: "Release the money when you're happy — or we release after a quiet window. If there's a dispute, nobody turns the key until it's sorted.",
   },
 ];
 
 export function EscrowSection() {
   return (
-    <section id="escrow" className="bg-[#F5EFE2] py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="flex flex-col gap-12 md:flex-row md:items-start md:gap-20">
-          {/* Left: heading block */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.5, ease: EASE }}
-            className="flex-1 md:max-w-[360px]"
-          >
-            <p className="mb-4 font-sans text-xs font-medium uppercase tracking-widest text-[#7A7060]">
-              Escrow, in three parts
-            </p>
-            <h2 className="font-sans text-[clamp(1.8rem,4vw,3rem)] font-semibold leading-[1.1] tracking-tight text-[#1C1A16]">
-              Money moves only when the moment does.
-            </h2>
-            <p className="mt-6 font-sans text-[15px] leading-relaxed text-[#7A7060]">
-              The industry runs on advances handed over in{" "}
-              <span className="text-[#1D3557]">envelopes</span>. Kritva runs
-              on a written promise, kept by a{" "}
-              <span className="text-[#1D3557]">ledger</span>.
-            </p>
-          </motion.div>
+    <section id="escrow" className="bg-mk-bg py-16">
+      <div className={`${shellWide} px-6`}>
+        <div className="mb-8 flex max-w-2xl flex-col gap-4">
+          <p className="text-meta font-medium uppercase tracking-widest text-mk-muted">
+            How money works
+          </p>
+          <h2 className="text-display tracking-tight text-mk-ink">
+            Held safely until the job is done.
+          </h2>
+          <p className="text-body text-mk-muted">
+            Think of it as a locker at a bank. You put the money in, the
+            photographer sees it&apos;s there, and it only moves when the work is done.
+          </p>
+        </div>
 
-          {/* Right: step list */}
-          <div className="flex-1">
-            {STEPS.map((step, i) => (
-              <motion.div
-                key={step.num}
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ delay: i * 0.08, duration: 0.45, ease: EASE }}
-                className={`flex gap-6 py-7 ${
-                  i < STEPS.length - 1 ? "border-b border-[#DDD5C4]" : ""
-                }`}
-              >
-                {/* Step number */}
-                <span className="w-8 flex-shrink-0 font-sans text-sm tabular-nums text-[#7A7060]">
-                  {step.num}
-                </span>
-
-                {/* Step body */}
-                <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-10">
-                  <h3 className="whitespace-pre-line font-sans text-[1.1rem] font-semibold leading-snug text-[#1C1A16]">
-                    {step.title}
-                  </h3>
-                  <p className="max-w-xs font-sans text-[14px] leading-relaxed text-[#7A7060]">
-                    {step.desc}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {STEPS.map((step, i) => (
+            <motion.div
+              key={step.num}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ delay: i * 0.08, duration: 0.45, ease: EASE }}
+            >
+              <Card className="h-full">
+                <CardContent className="flex flex-col gap-3">
+                  <span className="text-meta tabular-nums text-mk-muted">
+                    {step.num}
+                  </span>
+                  <h3 className="text-heading text-mk-ink">{step.title}</h3>
+                  <p className="text-body text-mk-muted">{step.body}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
       </div>
     </section>

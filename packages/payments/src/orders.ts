@@ -101,3 +101,75 @@ export function verifyPaymentSignature(
 
   return expected === signature;
 }
+
+export interface FetchedPayment {
+  id: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  method: string | null;
+}
+
+export interface FetchedOrder {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  receipt: string | null;
+}
+
+export async function fetchPayment(
+  paymentId: string,
+): Promise<FetchedPayment> {
+  const razorpay = getRazorpayClient();
+
+  try {
+    const payment = await razorpay.payments.fetch(paymentId);
+    return {
+      id: payment.id,
+      order_id: String(payment.order_id),
+      amount: Number(payment.amount),
+      currency: String(payment.currency),
+      status: String(payment.status),
+      method: payment.method != null ? String(payment.method) : null,
+    };
+  } catch (error: unknown) {
+    if (isRazorpayHttpError(error)) {
+      if (error.statusCode === 401) {
+        throw new RazorpayAuthError("Razorpay authentication failed");
+      }
+      throw new RazorpayApiError(
+        error.error?.description ?? "Razorpay payment fetch failed",
+      );
+    }
+
+    throw new RazorpayApiError("Razorpay payment fetch failed");
+  }
+}
+
+export async function fetchOrder(orderId: string): Promise<FetchedOrder> {
+  const razorpay = getRazorpayClient();
+
+  try {
+    const order = await razorpay.orders.fetch(orderId);
+    return {
+      id: order.id,
+      amount: Number(order.amount),
+      currency: String(order.currency),
+      status: String(order.status),
+      receipt: order.receipt != null ? String(order.receipt) : null,
+    };
+  } catch (error: unknown) {
+    if (isRazorpayHttpError(error)) {
+      if (error.statusCode === 401) {
+        throw new RazorpayAuthError("Razorpay authentication failed");
+      }
+      throw new RazorpayApiError(
+        error.error?.description ?? "Razorpay order fetch failed",
+      );
+    }
+
+    throw new RazorpayApiError("Razorpay order fetch failed");
+  }
+}

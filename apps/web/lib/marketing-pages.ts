@@ -14,20 +14,18 @@ export const MARKETING_PAGES = {
   about: {
     title: "About Kritva",
     description:
-      "Kritva is the operating system for India's premium events — verified vendors, escrowed payments, and built-in compliance.",
+      "Kritva sits between the person planning an event and the people supplying it — so organisers can compare honestly, and vendors actually get paid.",
     sections: [
       {
         paragraphs: [
-          "Kritva connects event hosts with verified vendors across decor, venues, catering, and production. Every booking runs through escrow, so funds move only when milestones are met.",
-          "We built Kritva for families, brands, and planners who need certainty — not another group chat chasing invoices and permits.",
+          "People in India still plan events on WhatsApp: fifteen quotes in fifteen shapes, then an advance to someone they've never met. Organisers can't compare or trust. Vendors can't filter tyre-kickers, and chase balances for months after spending their own money on materials.",
+          "Kritva holds the transaction together. Money sits with a licensed payment partner until the job is done. We instruct when it moves — we never hold customer funds ourselves.",
         ],
       },
       {
-        heading: "What we handle",
+        heading: "What we're building first",
         paragraphs: [
-          "Vendor verification and portfolio review",
-          "Escrow-backed payments with milestone releases",
-          "GST-ready invoicing and compliance workflows",
+          "Photography in Delhi NCR — packages you can compare, one payment held until delivery, then release to the photographer's bank. Catering (quotes) and venues come next. We finish one category until a real vendor's account receives real money.",
         ],
       },
     ],
@@ -35,43 +33,41 @@ export const MARKETING_PAGES = {
   "vendor-standards": {
     title: "Vendor standards",
     description:
-      "How Kritva verifies vendors before they appear in the directory.",
+      "What a photographer needs before they appear in search.",
     sections: [
       {
         paragraphs: [
-          "Every vendor on Kritva completes identity verification, portfolio review, and pricing disclosure before going live. We audit past work, check business registration, and validate service categories.",
+          "For photography, a listing needs a category, at least one priced package, a profile photo, and five portfolio photos. Without sample work, a photographer isn't sellable — so we don't show them.",
+          "A verified badge appears only after we've actually checked the vendor. New photographers with no reviews show no rating — not zero stars.",
         ],
       },
       {
-        heading: "Ongoing quality",
+        heading: "On the job",
         paragraphs: [
-          "Ratings and booking history stay visible on every profile.",
-          "Repeated disputes or compliance failures can lead to suspension.",
-          "Media and pricing must stay accurate — changes are reviewed.",
+          "Contact details stay hidden until payment is held — so the deal (and the money protection) stay on Kritva.",
+          "Repeated disputes or incomplete delivery can lead to suspension.",
         ],
       },
     ],
   },
   careers: {
     title: "Careers",
-    description: "Join the team building India's event infrastructure.",
+    description: "Working on Kritva.",
     sections: [
       {
         paragraphs: [
-          "We're hiring across engineering, operations, and vendor success in Bengaluru. If you care about trust, design, and Indian events, we'd like to hear from you.",
-          "Send your resume and a short note to careers@kritva.in.",
+          "We're a small team. If you care about trust in Indian events and want to help close the loop from enquiry to a vendor's bank account, email careers@kritva.in with a short note.",
         ],
       },
     ],
   },
   press: {
     title: "Press",
-    description: "Media enquiries and brand assets for Kritva.",
+    description: "Media enquiries for Kritva.",
     sections: [
       {
         paragraphs: [
-          "For press enquiries, interviews, or logo usage, email press@kritva.in.",
-          "We respond to media requests within two business days.",
+          "For press enquiries or logo usage, email press@kritva.in.",
         ],
       },
     ],
@@ -90,7 +86,7 @@ export const MARKETING_PAGES = {
   },
   "escrow-policy": {
     title: "Escrow policy",
-    description: "How Kritva holds and releases event payments.",
+    description: "How payments are held and released on Kritva.",
     comingSoon: true,
     sections: [],
   },
@@ -111,26 +107,21 @@ export const MARKETING_PAGES = {
           "Support for active bookings: support@kritva.in",
         ],
       },
-      {
-        heading: "Office",
-        paragraphs: ["Kritva Technologies Pvt. Ltd., Bengaluru, India"],
-      },
     ],
   },
   pricing: {
     title: "Pricing",
-    description: "How pricing works on Kritva.",
+    description: "How money and fees work on Kritva.",
     sections: [
       {
         paragraphs: [
-          "Vendor rates are listed in INR on each profile. Hosts see all-in quotes before confirming a booking — no hidden platform fees at checkout.",
+          "Organisers pay the package total shown on the booking — no platform fee at checkout. Money is held with our payment partner until the work is done, then released to the vendor.",
         ],
       },
       {
         heading: "For vendors",
         paragraphs: [
-          "Kritva charges a platform fee on completed bookings. Fee tiers are shared during vendor onboarding.",
-          "Escrow and payment processing costs are included in the quoted total shown to customers.",
+          "Kritva takes a commission from the vendor payout when money is released. The default is 2%, set per category, and shown as a line item — not deducted silently. The rate on a booking is fixed when you accept; a later settings change doesn't alter an agreed job.",
         ],
       },
     ],
